@@ -7,6 +7,7 @@ import static edu.wpi.first.units.Units.KilogramSquareMeters;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
+import static edu.wpi.first.units.Units.Millimeter;
 import static edu.wpi.first.units.Units.Percent;
 import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
@@ -47,20 +48,20 @@ public class Constants {
         .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign)
         .withGainSchedBehavior(GainSchedBehaviorValue.UseSlot0);
     public static final Slot0Configs SteerPID = new Slot0Configs()
-        .withKP(80).withKD(0)
+        .withKP(80).withKD(1)
         .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
     public static final MotionMagicConfigs SteerMagic = new MotionMagicConfigs()
         .withMotionMagicExpo_kV(0.1)
         .withMotionMagicExpo_kA(0.06642857143); //0.6642857143
 
     public static final ClosedLoopOutputType DriveOutput = ClosedLoopOutputType.TorqueCurrentFOC;
-    public static final ClosedLoopOutputType SteerOutput = ClosedLoopOutputType.TorqueCurrentFOC;
+    public static final ClosedLoopOutputType SteerOutput = ClosedLoopOutputType.Voltage;
     public static final DriveMotorArrangement DriveMotor = DriveMotorArrangement.TalonFX_Integrated;
     public static final SteerMotorArrangement SteerMotor = SteerMotorArrangement.TalonFX_Integrated;
     public static final SteerFeedbackType SteerEncoder = SteerFeedbackType.FusedCANcoder;
 
     public static final Current SlipCurrent = Amps.of(40);
-    public static final double DriveGearRatio = 1/(14.0/50*28/16*15/45); // TODO: SDS mk4i, formula implementation needed
+    public static final double DriveGearRatio = 1/(14.0/50*28/16*15/45);
     public static final double SteerGearRatio = 150.0/7;
     public static final double CoupleGearRatio = DriveGearRatio/SteerGearRatio;
     public static final Distance WheelRadius = Inches.of(2);
@@ -79,7 +80,8 @@ public class Constants {
                     .withStatorCurrentLimit(Amps.of(60))
                     .withStatorCurrentLimitEnable(true)
             );
-    public static final double[] RotationPIDConfig = {50/(2*Math.PI),0.0/(2*Math.PI),0.0/(2*Math.PI)};
+    public static final double[] RotationPIDConfig = {0.001,0,0};
+
     public static final CANcoderConfiguration EncoderConfig = new CANcoderConfiguration();
     public static final Pigeon2Configuration GyroConfig = null;
     public static final CANBus bus = new CANBus("Drivetrain");
@@ -123,7 +125,7 @@ public class Constants {
     public class Modules {
         public static final boolean LeftSideInverted = false;
         public static final boolean RightSideInverted = true;
-        public static final double OffsetValue = Centimeters.of(65).div(2).in(Meters);
+        public static final double OffsetValue = Millimeter.of(516.65).div(2).in(Meters);
         public static final double TuningDelta = -0.25;
         public static final boolean SteerMotorInverted = true;
         public static final boolean SteerEncoderInverted = false;

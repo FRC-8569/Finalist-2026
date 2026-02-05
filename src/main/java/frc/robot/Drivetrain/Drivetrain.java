@@ -26,6 +26,7 @@ import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -40,6 +41,7 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Drivetrain.Constants.Modules;
+import frc.robot.Vision.Vision;
 import frc.utils.FieldObjects;
 
 public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> implements Subsystem{
@@ -48,10 +50,11 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
     private boolean hasDirectionUpdated = false;
     private Notifier SimNotifier;
     private SwerveRequest.ApplyRobotSpeeds autoDrive;
-    public SwerveRequest.RobotCentricFacingAngle manualFacing;
-    public SwerveRequest.RobotCentric manualDrive;
+    public SwerveRequest.FieldCentricFacingAngle manualFacing;
+    public SwerveRequest.FieldCentric manualDrive;
     public SimulatedDrive SimulatedInstance;
     private Optional<FieldObjects> objects = Optional.empty();
+    public Vision vision;
 
     private Drivetrain(SwerveDrivetrainConstants constants, SwerveModuleConstants<?,?,?>... modules){
         super(TalonFX::new, TalonFX::new, CANcoder::new, constants, Utils.isSimulation() ? SimulatedDrive.regulateModuleConstantsForSimulation(modules) : modules);
@@ -62,29 +65,26 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
             .withSteerRequestType(SteerRequestType.Position)
             .withDesaturateWheelSpeeds(true);
 
-        manualDrive = new SwerveRequest.RobotCentric()
+        manualDrive = new SwerveRequest.FieldCentric()
             .withDriveRequestType(Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.OpenLoopVoltage)
             .withSteerRequestType(SteerRequestType.Position)
             .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
             .withRotationalDeadband(RotationsPerSecond.of(0.1))
             .withDesaturateWheelSpeeds(true);
 
-        manualFacing = new SwerveRequest.RobotCentricFacingAngle()
-            .withDriveRequestType(Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
+        manualFacing = new SwerveRequest.FieldCentricFacingAngle()
+            .withDriveRequestType(Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.OpenLoopVoltage)
             .withSteerRequestType(SteerRequestType.Position)
             .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
             .withRotationalDeadband(Constants.MaxOmega.times(Constants.Deadband))
-            .withHeadingPID(10, 0, 0);
+            .withHeadingPID(1.7, 0, 0);
 
-        Stream.of(getModules()).forEach((module) -> {
-            module.getSteerMotor().getConfigurator().apply(Constants.SteerMagic);
-            
-        });
+        vision = Vision.getInstance();
     }
 
     public Command withHeading(Optional<FieldObjects> obj){
         return runOnce(() -> objects=obj);
-    }//new Pose3d(Centimeters.of(465),Centimeters.of(403),Centimeters.of(175), new Rotation3d(Degrees.of(0),Degrees.of(-90),Degrees.of(0))).toPose2d()
+    }//
 
     public Command drive(Supplier<LinearVelocity> vx, Supplier<LinearVelocity> vy, Supplier<AngularVelocity> omega){
         return setControl(() -> objects.isPresent() ? 
@@ -133,6 +133,15 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
             DogLog.log("Drivetrain/Module/%d/SteerAngle".formatted(i), getModule(i).getEncoder().getAbsolutePosition().getValue().in(Degrees), Degree);
         });
         
+        vision.getPose().ifPresent(s -> addVisionMeasurement(s.getFirst(), s.getSecond()));
+
+        objects.ifPresent((object) -> {
+            DogLog.log("Drivetrain/FacingError", manualFacing.TargetDirection.minus(getState().Pose.getRotation()));
+        });
+    }
+
+    public Command resetHeading(){
+        return runOnce(() -> resetRotation(DriverStation.getAlliance().orElseThrow() == Alliance.Red ? Rotation2d.k180deg : Rotation2d.kZero));
     }
 
     @Override

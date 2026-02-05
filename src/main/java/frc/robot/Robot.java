@@ -4,6 +4,7 @@
 
 package frc.robot;
 
+import dev.doglog.DogLog;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -26,7 +27,9 @@ public class Robot extends TimedRobot {
   }
 
   @Override
-  public void disabledInit() {}
+  public void disabledInit() {
+    if(DogLog.isEnabled()) DogLog.setEnabled(false);
+  }
 
   @Override
   public void disabledPeriodic() {}
@@ -54,6 +57,7 @@ public class Robot extends TimedRobot {
     if (m_autonomousCommand != null) {
       m_autonomousCommand.cancel();
     }
+    if(!DogLog.isEnabled()) DogLog.setEnabled(true);
   }
 
   @Override
