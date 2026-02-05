@@ -102,6 +102,10 @@ public class Intake implements Subsystem{
             () -> RollerMotor.setControl(RollingPID.withVelocity(RotationsPerSecond.of(0)))).until(endCond);
     }
 
+    public Command resetPose(){
+        return runOnce(() -> TongueEncoder.setPosition(0));
+    }
+
     @Override
     public void periodic(){
         DogLog.log("Intake/Position", getInsIntakePosition().toString());

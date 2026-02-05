@@ -9,8 +9,6 @@ import static edu.wpi.first.units.Units.RotationsPerSecond;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
-
 import org.photonvision.PhotonUtils;
 
 import com.ctre.phoenix6.Utils;
@@ -26,7 +24,6 @@ import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 
-import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
