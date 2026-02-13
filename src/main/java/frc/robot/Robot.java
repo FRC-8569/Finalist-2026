@@ -4,12 +4,18 @@
 
 package frc.robot;
 
+import com.ctre.phoenix6.Utils;
+
 import dev.doglog.DogLog;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.hal.AllianceStationID;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.simulation.DriverStationSim;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.Auto.Auto;
+import frc.robot.Drivetrain.Drivetrain;
 
 public class Robot extends TimedRobot {
   private Command m_autonomousCommand;
@@ -18,24 +24,25 @@ public class Robot extends TimedRobot {
 
   public Robot() {
     m_robotContainer = new RobotContainer();
-    m_robotContainer.drivetrain.resetPose(new Pose2d(3,7,Rotation2d.kZero));
-  }
+    }
 
   @Override
   public void robotPeriodic() {
     CommandScheduler.getInstance().run();
-  }
+    DogLog.log("Utils/fmsmessage", DriverStation.getGameSpecificMessage());
+    }
 
   @Override
   public void disabledInit() {
-    if(DogLog.isEnabled()) DogLog.setEnabled(false);
   }
 
   @Override
   public void disabledPeriodic() {}
 
   @Override
-  public void disabledExit() {}
+  public void disabledExit() {
+    
+  }
 
   @Override
   public void autonomousInit() {
@@ -47,7 +54,9 @@ public class Robot extends TimedRobot {
   }
 
   @Override
-  public void autonomousPeriodic() {}
+  public void autonomousPeriodic() {
+    if(Utils.isSimulation()) SmartDashboard.putNumber("AutoTimeLeft", 20-Auto.timer.get());
+  }
 
   @Override
   public void autonomousExit() {}
@@ -57,7 +66,6 @@ public class Robot extends TimedRobot {
     if (m_autonomousCommand != null) {
       m_autonomousCommand.cancel();
     }
-    if(!DogLog.isEnabled()) DogLog.setEnabled(true);
   }
 
   @Override
@@ -76,4 +84,9 @@ public class Robot extends TimedRobot {
 
   @Override
   public void testExit() {}
+
+  @Override
+  public void simulationInit(){
+    DriverStationSim.setAllianceStationId(AllianceStationID.Red1);
+  }
 }

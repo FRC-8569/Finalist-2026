@@ -1,12 +1,14 @@
 package frc.robot.Drivetrain;
 
 import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.Centimeters;
 import static edu.wpi.first.units.Units.Inches;
 import static edu.wpi.first.units.Units.KilogramSquareMeters;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Millimeter;
+import static edu.wpi.first.units.Units.Millimeters;
 import static edu.wpi.first.units.Units.Percent;
 import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
@@ -16,7 +18,6 @@ import static edu.wpi.first.units.Units.Volts;
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
-import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.Pigeon2Configuration;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
@@ -29,6 +30,8 @@ import com.ctre.phoenix6.swerve.SwerveModuleConstants.ClosedLoopOutputType;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants.DriveMotorArrangement;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants.SteerMotorArrangement;
 import com.ctre.phoenix6.swerve.SwerveModuleConstantsFactory;
+import com.pathplanner.lib.config.PIDConstants;
+import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.path.PathConstraints;
 
 import edu.wpi.first.math.geometry.Translation2d;
@@ -43,15 +46,15 @@ import edu.wpi.first.units.measure.Voltage;
 
 public class Constants {
     public static final Slot0Configs DrivePID = new Slot0Configs()
-        .withKP(0.1).withKV(12.4/100*Constants.DriveGearRatio)
+        .withKP(5.2).withKV(12.4/100*Constants.DriveGearRatio)
         .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign)
         .withGainSchedBehavior(GainSchedBehaviorValue.UseSlot0);
     public static final Slot0Configs SteerPID = new Slot0Configs()
         .withKP(80).withKD(1)
         .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
-    public static final MotionMagicConfigs SteerMagic = new MotionMagicConfigs()
-        .withMotionMagicExpo_kV(0.1)
-        .withMotionMagicExpo_kA(0.06642857143); //0.6642857143
+    public static final PPHolonomicDriveController AutoPID = new PPHolonomicDriveController(
+        new PIDConstants(5.5, 0, 0), 
+        new PIDConstants(5, 0, 0));
 
     public static final ClosedLoopOutputType DriveOutput = ClosedLoopOutputType.TorqueCurrentFOC;
     public static final ClosedLoopOutputType SteerOutput = ClosedLoopOutputType.Voltage;
@@ -62,13 +65,14 @@ public class Constants {
     public static final Current SlipCurrent = Amps.of(40);
     public static final double DriveGearRatio = 1/(14.0/50*28/16*15/45);
     public static final double SteerGearRatio = 150.0/7;
-    public static final double CoupleGearRatio = DriveGearRatio/SteerGearRatio;
+    public static final double CoupleGearRatio = 50.0/14;
     public static final Distance WheelRadius = Inches.of(2);
     public static final LinearVelocity MaxVelocity = MetersPerSecond.of(5);
     public static final LinearVelocity DriveVelocity = MetersPerSecond.of(4);
-    public static final AngularVelocity MaxOmega = RotationsPerSecond.of(1.25);
+    public static final AngularVelocity MaxOmega = RotationsPerSecond.of(2);
     public static final Dimensionless Deadband = Percent.of(10); 
-    public static final PathConstraints AutoConstraints = new PathConstraints(MetersPerSecond.of(5), MetersPerSecondPerSecond.of(8), MaxOmega, RotationsPerSecondPerSecond.of(20));
+    public static final PathConstraints AutoConstraints = new PathConstraints(MetersPerSecond.of(5), MetersPerSecondPerSecond.of(25), RotationsPerSecond.of(3), RotationsPerSecondPerSecond.of(20));
+    public static final Distance[] RobotSize = {Centimeters.of(65), Centimeters.of(65).plus(Millimeters.of(82))};//x,y
 
     public static final TalonFXConfiguration DriveConfig = new TalonFXConfiguration();
     public static final TalonFXConfiguration SteerConfig = new TalonFXConfiguration()
@@ -79,11 +83,11 @@ public class Constants {
                     .withStatorCurrentLimit(Amps.of(60))
                     .withStatorCurrentLimitEnable(true)
             );
-    public static final double[] RotationPIDConfig = {0.001,0,0};
+    public static final double[] RotationPIDConfig = {7,0,0};
 
     public static final CANcoderConfiguration EncoderConfig = new CANcoderConfiguration();
     public static final Pigeon2Configuration GyroConfig = null;
-    public static final CANBus bus = new CANBus("Drivetrain");
+    public static final CANBus bus = new CANBus();
 
     // These are only used for simulation
     private static final MomentOfInertia kSteerInertia = KilogramSquareMeters.of(0.01);

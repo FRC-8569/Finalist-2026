@@ -1,116 +1,132 @@
 package frc.robot.Intake;
 
+import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Centimeters;
-import static edu.wpi.first.units.Units.Millimeter;
-import static edu.wpi.first.units.Units.Millimeters;
+import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Percent;
 import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
+import static edu.wpi.first.units.Units.Seconds;
 
-import java.util.function.BooleanSupplier;
-
-import com.ctre.phoenix6.configs.CANcoderConfiguration;
+import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicTorqueCurrentFOC;
-import com.ctre.phoenix6.controls.MotionMagicVelocityTorqueCurrentFOC;
-import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
-import com.ctre.phoenix6.hardware.CANcoder;
+import com.ctre.phoenix6.controls.CoastOut;
+import com.ctre.phoenix6.controls.MotionMagicVelocityVoltage;
+import com.ctre.phoenix6.controls.MotionMagicVoltage;
+import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.signals.ControlModeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-import com.ctre.phoenix6.signals.SensorDirectionValue;
-
 import dev.doglog.DogLog;
 import frc.robot.Intake.Constants.Tongue;
+import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Constants.Roller;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 
 public class Intake implements Subsystem{
     public TalonFX TongueMotor, RollerMotor;
-    public CANcoder TongueEncoder;
     private static Intake inst;
 
     private TalonFXConfiguration TongueConfig, RollerConfig;
-    private CANcoderConfiguration TongueEncoderConfig;
+   
+    public MotionMagicVoltage LickingPID;
+    public MotionMagicVelocityVoltage RollingPID;
 
-    public MotionMagicTorqueCurrentFOC LickingPID;
-    public MotionMagicVelocityTorqueCurrentFOC RollingPID;
+    private boolean hasStalled = false;
 
     private Intake(){
         TongueMotor = new TalonFX(Tongue.MotorID, Constants.bus);
         RollerMotor = new TalonFX(Roller.MotorID, Constants.bus);
-        TongueEncoder = new CANcoder(Tongue.EncdoerID, Constants.bus);
-
+        
         TongueConfig = new TalonFXConfiguration();
         RollerConfig = new TalonFXConfiguration();
-        TongueEncoderConfig = new CANcoderConfiguration();
+        
+        LickingPID = new MotionMagicVoltage(0);
+        RollingPID = new MotionMagicVelocityVoltage(0);
 
-        LickingPID = new MotionMagicTorqueCurrentFOC(0);
-        RollingPID = new MotionMagicVelocityTorqueCurrentFOC(0);
-
-        // TODO: Software limit TBD
         TongueConfig.MotorOutput
             .withInverted(InvertedValue.Clockwise_Positive)
-            .withNeutralMode(NeutralModeValue.Brake);
+            .withNeutralMode(NeutralModeValue.Coast);
         TongueConfig.Feedback
-            .withRotorToSensorRatio(Tongue.GearRatio)
-            .withFusedCANcoder(TongueEncoder);
+            .withSensorToMechanismRatio(Tongue.GearRatio);
         TongueConfig.withSlot0(Tongue.TonguePID);
         TongueConfig.withMotionMagic(Tongue.TongueMagic);
+        TongueConfig.SoftwareLimitSwitch
+            .withForwardSoftLimitThreshold(1.45)
+            .withReverseSoftLimitThreshold(0)
+            .withForwardSoftLimitEnable(true)
+            .withReverseSoftLimitEnable(true);
 
         RollerConfig.MotorOutput
-            .withInverted(InvertedValue.Clockwise_Positive)
+            .withInverted(InvertedValue.CounterClockwise_Positive)
             .withNeutralMode(NeutralModeValue.Coast);
         RollerConfig.Feedback
             .withSensorToMechanismRatio(Roller.GearRatio);
         RollerConfig.withSlot0(Roller.RollerPID);
         RollerConfig.withMotionMagic(Roller.RollerMagic);
 
-        TongueEncoderConfig.MagnetSensor
-            .withSensorDirection(SensorDirectionValue.Clockwise_Positive);
-
         TongueMotor.getConfigurator().apply(TongueConfig);
         RollerMotor.getConfigurator().apply(RollerConfig);
-        TongueEncoder.getConfigurator().apply(TongueEncoderConfig);
+        this.register();  
     }
 
-    public Distance getIntakePositionPresice(){
-        return Centimeters.of(TongueMotor.getPosition().getValue().in(Rotations)*Tongue.PitchDiameter.in(Centimeters));
+    public Angle getIntakePosition(){
+        return TongueMotor.getPosition().getValue();
     }
 
-    public IntakePosition getInsIntakePosition(){
-        if(IntakePosition.Idle.getValue().minus(getIntakePositionPresice()).abs(Millimeters) < 5) return IntakePosition.Idle;
-        else if(IntakePosition.Out.getValue().minus(getIntakePositionPresice()).abs(Millimeters) < 5) return IntakePosition.Idle;
-        else return null;
+    public LinearVelocity getRollerVelocity(){
+        return MetersPerSecond.of(RollerMotor.getVelocity().getValue().in(RotationsPerSecond)*Roller.WheelCirc.in(Meters));
     }
 
     public Command moveIntake(IntakePosition position){
-        return run(() -> TongueMotor.setControl(LickingPID.withPosition(Rotations.of(position.getValue().div(Tongue.PitchDiameter).in(Percent))))).withName("Moving...");
+        return run(() -> {
+            TongueMotor.setControl(LickingPID.withPosition(position.getValue()));
+        }).until(() -> TongueMotor.getVelocity().getValue().abs(RotationsPerSecond) < 0.01 && getIntakePosition().isNear(position.getValue(), 0.05))
+            .finallyDo(() -> {
+                TongueMotor.setControl(new NeutralOut());
+            }).withName("MovingIntake");
     }
 
-    public Command runIntake(){
-        return runEnd(
-            () -> RollerMotor.setControl(RollingPID.withVelocity(RotationsPerSecond.of(1))), 
-            () -> RollerMotor.setControl(RollingPID.withVelocity(RotationsPerSecond.of(0)))).withName("Rolling...");
+    public Command runIntake(LinearVelocity vel){
+        return run(() -> {
+            LinearVelocity v = vel.lt(Roller.SpeedRange[0]) ? Roller.SpeedRange[0] : vel;
+            v = v.gt(Roller.SpeedRange[1]) ? Roller.SpeedRange[1] : v;
+            RollerMotor.setControl(RollingPID.withVelocity(v.in(MetersPerSecond)/Roller.WheelCirc.in(Meters)));
+        });
     }
 
-    public Command runIntake(BooleanSupplier endCond){
-        return runEnd(
-            () -> RollerMotor.setControl(RollingPID.withVelocity(RotationsPerSecond.of(1))), 
-            () -> RollerMotor.setControl(RollingPID.withVelocity(RotationsPerSecond.of(0)))).until(endCond);
+    public Command intake(boolean isIntake){
+        ChassisSpeeds speeds = Drivetrain.getInstance().getState().Speeds;
+        return runIntake(MetersPerSecond.of(Math.sqrt(Math.pow(speeds.vxMetersPerSecond, 2)+Math.pow(speeds.vxMetersPerSecond, 2))).times(2.2).times(isIntake ? 1 : -1)).handleInterrupt(() -> RollerMotor.stopMotor());
     }
 
     public Command resetPose(){
-        return runOnce(() -> TongueEncoder.setPosition(0));
-    }
+        return runOnce(() -> TongueMotor.setPosition(0)).finallyDo(() -> idle());
+    } 
 
-    @Override
-    public void periodic(){
-        DogLog.log("Intake/Position", getInsIntakePosition().toString());
-        DogLog.log("Intake/Debug/IntakePositon", getIntakePositionPresice());
-        DogLog.log("Intake/CurrentDoing", getCurrentCommand().getName());
+    public Command CalibrateIntake(){
+        Timer t = new Timer();
+        return runEnd(() -> {
+            TongueMotor.set(-0.25);
+            TongueMotor.getConfigurator().apply(new SoftwareLimitSwitchConfigs().withReverseSoftLimitEnable(false));
+        }, () -> {
+            
+            t.reset();
+            t.start();
+            TongueMotor.stopMotor();
+            TongueMotor.setPosition(0);
+            TongueMotor.getConfigurator().apply(new SoftwareLimitSwitchConfigs().withReverseSoftLimitEnable(true));
+        }).until(() -> TongueMotor.getStatorCurrent().getValue().gt(Amps.of(9))).raceWith(Commands.run(() -> DogLog.log("Intake/Timer", t.get())));
     }
 
     public static Intake getInstance(){
@@ -118,15 +134,35 @@ public class Intake implements Subsystem{
         return inst;
     }
 
-    public enum IntakePosition{
-        Idle(Centimeters.of(0)), Out(Centimeters.of(10));
-        Distance d;
+    private boolean isMotorStalling(){
+        return TongueMotor.getStatorCurrent().getValue().abs(Amps) > Tongue.StallLimit.in(Amps);
+    }
 
-        IntakePosition(Distance dist){
+    @Override
+    public void periodic(){
+        DogLog.log("Intake/IntakePositionPrecise", getIntakePosition());
+        if(getCurrentCommand() != null)DogLog.log("Intake/CurrentDoing", getCurrentCommand().getName());
+        DogLog.log("Intake/TongueControlMode", TongueMotor.getControlMode().getValue().toString());
+        DogLog.log("Intake/RollerControlMode", RollerMotor.getControlMode().getValue().toString());
+        DogLog.log("Intake/RollerVelocity", getRollerVelocity());
+
+        DogLog.log("Intake/TongueCurrents", TongueMotor.getStatorCurrent().getValue());
+        DogLog.log("Intake/TongueVelocity", TongueMotor.getVelocity().getValue());
+
+
+        if(DriverStation.isDisabled() && TongueMotor.getControlMode().getValue() != ControlModeValue.CoastOut) TongueMotor.setControl(new CoastOut());
+        if(isMotorStalling()) hasStalled = true;
+    }
+
+    public enum IntakePosition{
+        Idle(Rotations.of(0)), Out(Rotations.of(1.4));
+        Angle d;
+
+        IntakePosition(Angle dist){
             d = dist;
         }
 
-        public Distance getValue(){
+        public Angle getValue(){
             return d;
         }
 
