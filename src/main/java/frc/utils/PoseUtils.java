@@ -22,7 +22,6 @@ public class PoseUtils {
     public static Pose2d getPose(Pose2d pose, Alliance alliance){ 
         var x = pose.getMeasureX();
         var delta = Constants.CenterLine.minus(x);
-        SmartDashboard.putNumber("debug/deltaDistance", delta.in(Meters));
 
         boolean shouldMirror = alliance == Alliance.Blue ? delta.lt(Meters.of(0)) :  delta.gt(Meters.of(0)) ;
         SmartDashboard.putBoolean("debug/ShouldMirror", shouldMirror);
