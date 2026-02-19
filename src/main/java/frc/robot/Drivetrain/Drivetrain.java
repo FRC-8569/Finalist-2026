@@ -14,8 +14,6 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import org.photonvision.PhotonUtils;
-
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
@@ -43,10 +41,8 @@ import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Notifier;
-import edu.wpi.first.wpilibj.PowerDistribution;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import edu.wpi.first.wpilibj.PowerDistribution.ModuleType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.GlobalConstant;
@@ -63,11 +59,10 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
     private Notifier SimNotifier;
     private SwerveRequest.ApplyRobotSpeeds autoDrive;
     public SwerveRequest.FieldCentricFacingAngle manualFacing;
-    public SwerveRequest.RobotCentric manualDrive;
+    public SwerveRequest.FieldCentric manualDrive;
     public SimulatedDrive SimulatedInstance;
     private Optional<FieldObjects> objects = Optional.empty();
     public Vision vision;
-    public PowerDistribution PDH;
 
     private double SimTime = 0;
 
@@ -80,7 +75,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
             .withSteerRequestType(SteerRequestType.Position)
             .withDesaturateWheelSpeeds(true);
 
-        manualDrive = new SwerveRequest.RobotCentric()
+        manualDrive = new SwerveRequest.FieldCentric()
             .withDriveRequestType(Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
             .withSteerRequestType(SteerRequestType.Position)
             .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
@@ -96,8 +91,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
             .withHeadingPID(Constants.RotationPIDConfig[0], Constants.RotationPIDConfig[1], Constants.RotationPIDConfig[2]);
 
         vision = Vision.getInstance();
-        PDH = new PowerDistribution(15, ModuleType.kRev);
-        DogLog.setPdh(PDH);
+        
         autoInit();
     }
 
@@ -107,10 +101,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
 
     public Command drive(Supplier<LinearVelocity> vx, Supplier<LinearVelocity> vy, Supplier<AngularVelocity> omega){
         return setControl(() -> objects.isPresent() && omega.get().lt(Constants.MaxOmega.times(Constants.Deadband))? 
-        manualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(switch(objects.get()){
-            case HUB -> PhotonUtils.getYawToPose(getState().Pose, PoseUtils.getPose(GlobalConstant.HubPose.toPose2d(), DriverStation.getAlliance().orElseThrow())).rotateBy(Rotation2d.k180deg);
-            case Alliance -> DriverStation.getAlliance().orElseThrow() == Alliance.Red ? GlobalConstant.RedAlliance.rotateBy(Rotation2d.k180deg) : GlobalConstant.BlueAlliance.rotateBy(Rotation2d.k180deg);
-        }): 
+        manualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(objects.get().getPose().getRotation().toRotation2d()): 
         manualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())).withName("Drive normally");
     }
 
@@ -134,8 +125,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
 
     public Command driveOverTrench(){
         return defer(() -> {
-            List<Pose2d> trenchPose = List.of(PoseUtils.getPose(GlobalConstant.LeftTrench, DriverStation.getAlliance().orElseThrow()),PoseUtils.getPose(GlobalConstant.RightTrench, DriverStation.getAlliance().orElseThrow()));
-            return drive(getState().Pose.nearest(trenchPose),MetersPerSecond.of(2.5)).withTimeout(0.01).andThen(drive(getState().Pose.nearest(trenchPose),MetersPerSecond.of(2.5)));
+            return drive(getState().Pose.nearest(List.of(PoseUtils.getPose(GlobalConstant.LeftTrench, DriverStation.getAlliance().orElseThrow()),PoseUtils.getPose(GlobalConstant.RightTrench, DriverStation.getAlliance().orElseThrow()))),MetersPerSecond.of(1));
         }); 
     }
 
@@ -198,7 +188,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
         DogLog.log("Drivetrain/ModuleTarget", getState().ModuleTargets);
         DogLog.log("Drivetrain/RobotPose", getState().Pose);
         DogLog.log("Drivetrain/RobotSpeeds", getState().Speeds);
-        DogLog.log("Drivetrain/LockingTarget", objects == null ? "null" : objects.toString());
+        DogLog.log("Drivetrain/LockingTarget", objects.isEmpty() ? "null" : objects.get().toString());
         DogLog.log("Drivetrain/LockObjectPose", objects != null && objects.isPresent() ? PoseUtils.getPose(GlobalConstant.HubPose.toPose2d(), DriverStation.getAlliance().orElseThrow()) : null);
         DogLog.log("Drivetrain/LockingAngle", manualFacing.TargetDirection);
         DogLog.log("Drivetrain/LockingError", manualFacing.TargetDirection.minus(getState().Pose.getRotation()));

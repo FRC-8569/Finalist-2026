@@ -29,7 +29,7 @@ public class Constants {
 
         public static final double GearRatio = 20*1/1.5;
         public static final Distance tolerance = Centimeters.of(1);
-        public static final Current StallLimit = Amps.of(9);
+        public static final Current StallLimit = Amps.of(100); // TODO: test the stall current
     }
 
     public class Roller {

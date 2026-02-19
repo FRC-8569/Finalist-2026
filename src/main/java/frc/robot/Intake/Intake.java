@@ -1,20 +1,18 @@
 package frc.robot.Intake;
 
 import static edu.wpi.first.units.Units.Amps;
-import static edu.wpi.first.units.Units.Centimeters;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.Percent;
 import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
-import static edu.wpi.first.units.Units.Seconds;
+import java.util.Optional;
 
 import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.CoastOut;
 import com.ctre.phoenix6.controls.MotionMagicVelocityVoltage;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
-import com.ctre.phoenix6.controls.NeutralOut;
+import com.ctre.phoenix6.controls.StaticBrake;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.ControlModeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
@@ -25,12 +23,9 @@ import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Constants.Roller;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.units.measure.Angle;
-import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 
 public class Intake implements Subsystem{
@@ -43,6 +38,7 @@ public class Intake implements Subsystem{
     public MotionMagicVelocityVoltage RollingPID;
 
     private boolean hasStalled = false;
+    private Optional<IntakePosition> target = Optional.empty();
 
     private Intake(){
         TongueMotor = new TalonFX(Tongue.MotorID, Constants.bus);
@@ -91,10 +87,12 @@ public class Intake implements Subsystem{
     public Command moveIntake(IntakePosition position){
         return run(() -> {
             TongueMotor.setControl(LickingPID.withPosition(position.getValue()));
+            target = Optional.of(position);
         }).until(() -> TongueMotor.getVelocity().getValue().abs(RotationsPerSecond) < 0.01 && getIntakePosition().isNear(position.getValue(), 0.05))
             .finallyDo(() -> {
-                TongueMotor.setControl(new NeutralOut());
-            }).withName("MovingIntake");
+                TongueMotor.setControl(position == IntakePosition.Out ? new CoastOut(): new StaticBrake());
+                target = Optional.empty();
+            }).withName("MovingIntake").beforeStarting(CalibrateIntake().onlyIf(() -> hasStalled));
     }
 
     public Command runIntake(LinearVelocity vel){
@@ -115,18 +113,15 @@ public class Intake implements Subsystem{
     } 
 
     public Command CalibrateIntake(){
-        Timer t = new Timer();
-        return runEnd(() -> {
-            TongueMotor.set(-0.25);
+        return runEnd(() -> { 
             TongueMotor.getConfigurator().apply(new SoftwareLimitSwitchConfigs().withReverseSoftLimitEnable(false));
-        }, () -> {
-            
-            t.reset();
-            t.start();
+            TongueMotor.set(-0.25);
+            }, () -> {
             TongueMotor.stopMotor();
             TongueMotor.setPosition(0);
             TongueMotor.getConfigurator().apply(new SoftwareLimitSwitchConfigs().withReverseSoftLimitEnable(true));
-        }).until(() -> TongueMotor.getStatorCurrent().getValue().gt(Amps.of(9))).raceWith(Commands.run(() -> DogLog.log("Intake/Timer", t.get())));
+            hasStalled = false;
+        }).until(() -> TongueMotor.getStatorCurrent().getValue().gt(Amps.of(9)));
     }
 
     public static Intake getInstance(){
@@ -149,7 +144,7 @@ public class Intake implements Subsystem{
         DogLog.log("Intake/TongueCurrents", TongueMotor.getStatorCurrent().getValue());
         DogLog.log("Intake/TongueVelocity", TongueMotor.getVelocity().getValue());
 
-
+        DogLog.log("Intake/Target", target.isPresent() ? target.get().toString() : "null");
         if(DriverStation.isDisabled() && TongueMotor.getControlMode().getValue() != ControlModeValue.CoastOut) TongueMotor.setControl(new CoastOut());
         if(isMotorStalling()) hasStalled = true;
     }

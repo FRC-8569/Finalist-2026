@@ -9,7 +9,6 @@ import java.util.Optional;
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Auto.Auto;
 import frc.robot.Drivetrain.Constants;
@@ -28,7 +27,7 @@ public class RobotContainer {
     drivetrain.setDefaultCommand(drivetrain.drive(
       () -> Constants.MaxVelocity.times(DrivetrainController.getLeftY()).times(Constants.DriveVelocity.div(Constants.MaxVelocity)), 
       () -> Constants.MaxVelocity.times(DrivetrainController.getLeftX()).times(Constants.DriveVelocity.div(Constants.MaxVelocity)), 
-      () -> Constants.MaxOmega.times(DrivetrainController.getRightX())));
+      () -> Constants.MaxOmega.times(-DrivetrainController.getRightX())));
 
    configureBindings();
 
