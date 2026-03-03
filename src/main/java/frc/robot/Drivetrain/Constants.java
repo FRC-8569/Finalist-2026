@@ -55,6 +55,9 @@ public class Constants {
     public static final PPHolonomicDriveController AutoPID = new PPHolonomicDriveController(
         new PIDConstants(5.5, 0, 0), 
         new PIDConstants(5, 0, 0));
+    public static final PPHolonomicDriveController AutoHeadingPID = new PPHolonomicDriveController(
+        new PIDConstants(5.5), 
+        new PIDConstants(0));
 
     public static final ClosedLoopOutputType DriveOutput = ClosedLoopOutputType.TorqueCurrentFOC;
     public static final ClosedLoopOutputType SteerOutput = ClosedLoopOutputType.Voltage;
@@ -87,7 +90,7 @@ public class Constants {
 
     public static final CANcoderConfiguration EncoderConfig = new CANcoderConfiguration();
     public static final Pigeon2Configuration GyroConfig = null;
-    public static final CANBus bus = new CANBus();
+    public static final CANBus bus = new CANBus("Drivetrain");
 
     // These are only used for simulation
     private static final MomentOfInertia kSteerInertia = KilogramSquareMeters.of(0.01);
@@ -101,7 +104,7 @@ public class Constants {
      = new SwerveDrivetrainConstants()
         .withCANBusName(bus.getName())
         .withPigeon2Configs(GyroConfig)
-        .withPigeon2Id(0);
+        .withPigeon2Id(13);
     
     public static final SwerveModuleConstantsFactory<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration> ModuleCreator = new SwerveModuleConstantsFactory<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration>()
     .withDriveMotorGearRatio(DriveGearRatio)

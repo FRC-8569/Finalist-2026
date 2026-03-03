@@ -1,69 +1,63 @@
 package frc.robot.Shooter;
 
+import static edu.wpi.first.units.Units.Celsius;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
+import static edu.wpi.first.units.Units.RadiansPerSecond;
 
-import java.util.Optional;
+import java.util.function.Supplier;
 
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicTorqueCurrentFOC;
+import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.MotionMagicVelocityTorqueCurrentFOC;
+import com.ctre.phoenix6.controls.MotionMagicVoltage;
+import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.ctre.phoenix6.signals.SensorDirectionValue;
 
-import edu.wpi.first.math.geometry.Pose3d;
+import dev.doglog.DogLog;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StringSubscriber;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
-import frc.robot.Drivetrain.Drivetrain;
-import frc.robot.Shooter.Constants.Index;
 import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
-import frc.robot.Shooter.Constants.Spindex;
-import frc.utils.FieldObjects;
-import frc.utils.PoseUtils;
-import frc.utils.ShootUtils;
-import frc.utils.PoseUtils.FieldPlace;
-import frc.utils.ShootUtils.RobotState;
 
-public class Shooter implements Subsystem{
-    public static Shooter inst;
-    public TalonFX ShootingMotor, PitchingMotor, IndexingMotor, SpindexingMotor;
+public class Shooter implements Subsystem {
+    public TalonFX ShootingMotor, PitchingMotor;
     public CANcoder PitchingEncoder;
 
-    public MotionMagicTorqueCurrentFOC PitchingPID;
-    public MotionMagicVelocityTorqueCurrentFOC ShootPID, IndexPID, SpindexPID;
+    public MotionMagicVoltage PitchingPID;
+    public MotionMagicVelocityTorqueCurrentFOC ShootPID;
+    public DutyCycleOut IndexPID, SpindexPID;
 
-    private TalonFXConfiguration ShootConfig, PitchConfig, IndexConfig, SpindexConfig;
+    private TalonFXConfiguration PitchConfig, ShootConfig, IndexConfig, SpindexConfig;
     private CANcoderConfiguration PitchEncoderConfig;
-    private StringSubscriber CurrentLocking;
+    public SwerveModuleState targetState = new SwerveModuleState(0, Rotation2d.kZero);
+    
+    public Alert ShooterAlert;
 
-    public boolean hasControlled = false;
-    public boolean shootable = false;
-
+    private static Shooter inst;
     private Shooter(){
-        ShootingMotor = new TalonFX(Shoot.MotorID, Constants.bus);
         PitchingMotor = new TalonFX(Pitch.MotorID, Constants.bus);
-        IndexingMotor = new TalonFX(Index.MotorID, Constants.bus);
-        SpindexingMotor = new TalonFX(Spindex.MotorID, Constants.bus);
+        ShootingMotor = new TalonFX(Shoot.MotorID, Constants.bus);
         PitchingEncoder = new CANcoder(Pitch.EncoderID, Constants.bus);
-
-        PitchingPID = new MotionMagicTorqueCurrentFOC(0);
+    
+        PitchingPID = new MotionMagicVoltage(0);
         ShootPID = new MotionMagicVelocityTorqueCurrentFOC(0);
-        IndexPID = new MotionMagicVelocityTorqueCurrentFOC(0);
-        SpindexPID = new MotionMagicVelocityTorqueCurrentFOC(0);
+        IndexPID = new DutyCycleOut(0);
+        SpindexPID = new DutyCycleOut(0);
+
+        ShooterAlert = new Alert("Robot", "Shooter Overheated", AlertType.kWarning);
 
         ShootConfig = new TalonFXConfiguration();
         PitchConfig = new TalonFXConfiguration();
@@ -75,8 +69,7 @@ public class Shooter implements Subsystem{
             .withNeutralMode(NeutralModeValue.Brake)
             .withInverted(InvertedValue.Clockwise_Positive);
         PitchConfig.Feedback
-            .withFusedCANcoder(PitchingEncoder)
-            .withRotorToSensorRatio(Pitch.GearRatio);
+            .withSensorToMechanismRatio(10);
         PitchConfig.withSlot0(Pitch.PitchPID);
         PitchConfig.withMotionMagic(Pitch.PitchMagic);
         PitchConfig.withSoftwareLimitSwitch(Pitch.PitchLimit);
@@ -86,88 +79,86 @@ public class Shooter implements Subsystem{
             .withInverted(InvertedValue.Clockwise_Positive);
         ShootConfig.Feedback
             .withSensorToMechanismRatio(Shoot.GearRatio);
-        ShootConfig.withSlot0(Shoot.ShootPID);
-        ShootConfig.withMotionMagic(Shoot.ShootMagic);
+        ShootConfig.MotionMagic
+            .withMotionMagicAcceleration(25);
 
         IndexConfig.MotorOutput
-            .withNeutralMode(NeutralModeValue.Coast)
-            .withInverted(InvertedValue.Clockwise_Positive);
-        IndexConfig.Feedback
-            .withSensorToMechanismRatio(Index.GearRatio);
-        IndexConfig.withSlot0(Index.IndexPID);
-        IndexConfig.withMotionMagic(Index.IndexMagic);
+            .withInverted(InvertedValue.Clockwise_Positive)
+            .withNeutralMode(NeutralModeValue.Coast);
 
         SpindexConfig.MotorOutput
-            .withNeutralMode(NeutralModeValue.Brake)
-            .withInverted(InvertedValue.Clockwise_Positive);
-        SpindexConfig.Feedback
-            .withSensorToMechanismRatio(Spindex.GearRatio);
-        SpindexConfig.withSlot0(Spindex.SpindexPID);
-        SpindexConfig.withMotionMagic(Spindex.SpindexMagic);
+            .withInverted(InvertedValue.Clockwise_Positive)
+            .withNeutralMode(NeutralModeValue.Coast);
 
         PitchEncoderConfig.MagnetSensor
             .withSensorDirection(SensorDirectionValue.Clockwise_Positive)
             .withMagnetOffset(Pitch.PitchOffset);
 
-        PitchingMotor.getConfigurator().apply(PitchConfig);
-        ShootingMotor.getConfigurator().apply(ShootConfig);
-        IndexingMotor.getConfigurator().apply(IndexConfig);
-        SpindexingMotor.getConfigurator().apply(SpindexConfig);
+        ShootConfig.withSlot0(Shoot.ShootPID);
+        ShootConfig.withMotionMagic(Shoot.ShootMagic);
         PitchingEncoder.getConfigurator().apply(PitchEncoderConfig);
 
-        CurrentLocking = NetworkTableInstance.getDefault().getStringTopic("Drivetrain/LockingTarget").subscribe("null");
+        PitchingMotor.getConfigurator().apply(PitchConfig);
+        ShootingMotor.getConfigurator().apply(ShootConfig);
+
+        PitchingMotor.setPosition(0);
 
         register();
 
-
+        setDefaultCommand(setState(() -> new SwerveModuleState(MetersPerSecond.of(1), getState().angle)));
     }
 
-    public SwerveModuleState getShooterState(){
+    public SwerveModuleState getState(){
         return new SwerveModuleState(
-            MetersPerSecond.of(ShootingMotor.getVelocity().getValue().in(RotationsPerSecond)*Shoot.WheelCirc.in(Meters)), 
-            new Rotation2d(ShootingMotor.getPosition().getValue()));
+            MetersPerSecond.of(ShootingMotor.getVelocity().getValue().in(RadiansPerSecond)*Shoot.WheelRadius.in(Meters)),
+            new Rotation2d(PitchingEncoder.getPosition().getValue())
+        );
     }
 
     public Command setState(SwerveModuleState state){
-        return run(() -> {
+        if(state.angle.getMeasure().lt(Pitch.PitchingAngle.getFirst()) || state.angle.getMeasure().gt(Pitch.PitchingAngle.getSecond()) || state.speedMetersPerSecond > Shoot.MaxVelocity.in(MetersPerSecond)) return idle();
+        else return run(() -> {
             PitchingMotor.setControl(PitchingPID.withPosition(state.angle.getMeasure()));
-            ShootingMotor.setControl(ShootPID.withVelocity(state.speedMetersPerSecond/Shoot.WheelCirc.in(Meters)));
-        }).until(() -> PitchingMotor.getPosition().getValue().isNear(PitchingPID.getPositionMeasure(), 0.05) && ShootingMotor.getVelocity().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05));
+            ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(state.speedMetersPerSecond/Shoot.WheelRadius.in(Meters))));
+            targetState = state;
+        }).until(() -> PitchingMotor.getPosition().getValue().isNear(PitchingPID.getPositionMeasure(), 0.05) && ShootingMotor.getPosition().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05));
     }
 
-    public Command indexFuel(){
-        return Commands.run(() -> {
-            SpindexingMotor.setControl(SpindexPID.withVelocity(1));
-            IndexingMotor.setControl(IndexPID.withVelocity(1));
-        }).handleInterrupt(() -> {
-            SpindexingMotor.stopMotor();
-            IndexingMotor.stopMotor();
-        });
+    private Command setState(Supplier<SwerveModuleState> state){
+        return setState(state.get());
     }
 
-    public Command shoot(Angle angle, LinearVelocity vel){
-        return setState(new SwerveModuleState(vel,new Rotation2d(angle))).alongWith(Commands.runOnce(() -> hasControlled = true)).andThen(indexFuel()).handleInterrupt(() -> emergencyStop().schedule());
+    public Command setShooterState(LinearVelocity vel){
+        return run(() -> ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(vel.in(MetersPerSecond)/Shoot.WheelRadius.in(Meters)))))
+            .until(() -> ShootingMotor.getVelocity().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05));
+            
     }
 
-    public Command emergencyStop(){
-        return runOnce(() -> {
-            SpindexingMotor.stopMotor();
-            IndexingMotor.stopMotor();
-            setState(new SwerveModuleState(0, Rotation2d.kZero));
-        });
+    public Command pitchShooter(Angle angle){
+        if(angle.lt(Pitch.PitchingAngle.getFirst()) || angle.gt(Pitch.PitchingAngle.getSecond())) return idle();
+        return run(() -> {
+            PitchingMotor.setControl(PitchingPID.withPosition(angle));
+        })
+        .handleInterrupt(() -> PitchingMotor.setControl(new NeutralOut()));
+    }
+
+    public Command stopShooter(){
+        return runOnce(() -> ShootingMotor.stopMotor());
+    }
+    
+    public Command resetPitch(){
+        return Commands.runOnce(() -> PitchingMotor.setPosition(0));
     }
 
     @Override
     public void periodic(){
-            Optional<FieldObjects> currentLocking = CurrentLocking.get().contains("null") ? Optional.empty() : Optional.of(FieldObjects.valueOf(CurrentLocking.get()));
-            Optional<RobotState> state = Optional.empty();
-            if(currentLocking.isPresent()){
-                state = ShootUtils.calculateState(new Transform3d(new Pose3d(Drivetrain.getInstance().getState().Pose).plus(Constants.ShooterPlace), currentLocking.get().getPose()));
-            }
+        DogLog.log("Debug/Shooter/PitchingMotorState", PitchingMotor.getControlMode().toString());
+        DogLog.log("Debug/Shooter/PitchTarget", PitchingPID.getPositionMeasure());
+        DogLog.log("Debug/Shooter/PitchingAngle", PitchingMotor.getPosition().getValue());
+        DogLog.log("Driver/Shooter/TargetState", targetState);
+        DogLog.log("Driver/Shooter/CurrentState", getState());
 
-            state.ifPresent((s) -> {
-                if(!hasControlled && PoseUtils.getRobotZone().get() != FieldPlace.Neutral) setState(new SwerveModuleState(s.vel(), new Rotation2d(s.pitch()))).schedule();
-            });
+        ShooterAlert.set(ShootingMotor.getDeviceTemp().getValue().gt(Celsius.of(60)));
     }
 
     public static Shooter getInstance(){

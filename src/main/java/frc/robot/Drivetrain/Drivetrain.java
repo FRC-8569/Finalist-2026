@@ -1,9 +1,7 @@
 package frc.robot.Drivetrain;
 
-import static edu.wpi.first.units.Units.Degree;
-import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Meters;
-import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Milliseconds;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
 import static edu.wpi.first.units.Units.Seconds;
@@ -12,229 +10,232 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
+import org.photonvision.PhotonUtils;
 
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.swerve.SwerveDrivetrain;
+import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType;
+import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
 import com.pathplanner.lib.auto.AutoBuilder;
-import com.pathplanner.lib.commands.PathfindThenFollowPath;
 import com.pathplanner.lib.commands.PathfindingCommand;
 import com.pathplanner.lib.config.RobotConfig;
-import com.pathplanner.lib.path.GoalEndState;
-import com.pathplanner.lib.path.PathPlannerPath;
 
 import dev.doglog.DogLog;
-
-import com.ctre.phoenix6.swerve.SwerveDrivetrain;
-import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
-import com.ctre.phoenix6.swerve.SwerveModuleConstants;
-import com.ctre.phoenix6.swerve.SwerveRequest;
-
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
-import frc.robot.GlobalConstant;
+import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Constants.Modules;
 import frc.robot.Vision.Vision;
 import frc.utils.FieldObjects;
+import frc.utils.GameData;
 import frc.utils.PoseUtils;
 import frc.utils.PoseUtils.FieldPlace;
+import frc.utils.PoseUtils.Side;
 
-public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> implements Subsystem{
-    public static Drivetrain inst;
-    public Time SimLoopTime = Milliseconds.of(1);
+public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> implements Subsystem{
+    private static Drivetrain inst;
+    private Time SimLoopTime = Milliseconds.of(1);
     private boolean hasDirectionUpdated = false;
     private Notifier SimNotifier;
-    private SwerveRequest.ApplyRobotSpeeds autoDrive;
-    public SwerveRequest.FieldCentricFacingAngle manualFacing;
-    public SwerveRequest.FieldCentric manualDrive;
-    public SimulatedDrive SimulatedInstance;
-    private Optional<FieldObjects> objects = Optional.empty();
-    public Vision vision;
-
+    private SwerveRequest.ApplyRobotSpeeds AutoDrive;
+    private SwerveRequest.FieldCentric ManualDrive;
+    private SwerveRequest.FieldCentricFacingAngle ManualFacing;
     private double SimTime = 0;
+    private boolean hasVisionUpdated = false;
 
-    private Drivetrain(SwerveDrivetrainConstants constants, SwerveModuleConstants<?,?,?>... modules){
-        super(TalonFX::new, TalonFX::new, CANcoder::new, constants, Utils.isSimulation() ? SimulatedDrive.regulateModuleConstantsForSimulation(modules) : modules);
-        if(Utils.isSimulation()) simulationInit();
+    public Vision vision;
+    
+    private Drivetrain(){
+        
+        super(TalonFX::new,TalonFX::new,CANcoder::new,Constants.constants,
+       
+            
+             new SwerveModuleConstants<?, ?, ?>[] {
+                Modules.FrontLeft.constant,
+                Modules.FrontRight.constant,
+                Modules.BackLeft.constant,
+                Modules.BackRight.constant
+            }
+        );
 
-        autoDrive = new SwerveRequest.ApplyRobotSpeeds()
-            .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
-            .withSteerRequestType(SteerRequestType.Position)
-            .withDesaturateWheelSpeeds(true);
+        
+        AutoDrive = new SwerveRequest.ApplyRobotSpeeds()
+                .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
+                .withSteerRequestType(SteerRequestType.Position)
+                .withDesaturateWheelSpeeds(true);
 
-        manualDrive = new SwerveRequest.FieldCentric()
-            .withDriveRequestType(Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
-            .withSteerRequestType(SteerRequestType.Position)
-            .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
-            .withRotationalDeadband(RotationsPerSecond.of(0.1))
-            .withDesaturateWheelSpeeds(true);
+        ManualDrive = new SwerveRequest.FieldCentric()
+                .withDriveRequestType(
+                        Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
+                .withSteerRequestType(SteerRequestType.Position)
+                .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
+                .withRotationalDeadband(RotationsPerSecond.of(0.1))
+                .withDesaturateWheelSpeeds(true);
 
-        manualFacing = new SwerveRequest.FieldCentricFacingAngle()
-            .withDriveRequestType(Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
-            .withSteerRequestType(SteerRequestType.Position)
-            .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
-            .withRotationalDeadband(Constants.MaxOmega.times(Constants.Deadband))
-            .withForwardPerspective(ForwardPerspectiveValue.OperatorPerspective)
-            .withHeadingPID(Constants.RotationPIDConfig[0], Constants.RotationPIDConfig[1], Constants.RotationPIDConfig[2]);
-
-        vision = Vision.getInstance();
+        ManualFacing = new SwerveRequest.FieldCentricFacingAngle()
+                .withDriveRequestType(
+                        Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
+                .withSteerRequestType(SteerRequestType.Position)
+                .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
+                .withRotationalDeadband(Constants.MaxOmega.times(Constants.Deadband))
+                .withForwardPerspective(ForwardPerspectiveValue.OperatorPerspective)
+                .withHeadingPID(Constants.RotationPIDConfig[0], Constants.RotationPIDConfig[1],
+                        Constants.RotationPIDConfig[2]);
         
         autoInit();
+        if(Utils.isSimulation()) simInit();
+        register();
+        vision = Vision.getInstance();
     }
-
-    public Command withHeading(Optional<FieldObjects> obj){
-        return runOnce(() -> objects=obj);
-    }//
 
     public Command drive(Supplier<LinearVelocity> vx, Supplier<LinearVelocity> vy, Supplier<AngularVelocity> omega){
-        return setControl(() -> objects.isPresent() && omega.get().lt(Constants.MaxOmega.times(Constants.Deadband))? 
-        manualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(objects.get().getPose().getRotation().toRotation2d()): 
-        manualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())).withName("Drive normally");
+        return run(() -> setControl(GameData.getInstance().CurrentLocking.map(FieldObjects::getPose).map(Pose3d::toPose2d)
+        .<SwerveRequest>map(pose -> omega.get().gt(Constants.MaxOmega.times(Constants.Deadband)) ? 
+                                                ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : 
+                                                ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(PhotonUtils.getYawToPose(getState().Pose, pose)))
+        .orElse(ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))))
+        .withName(GameData.getInstance().CurrentLocking.isPresent() ? "Driving with locking to %s".formatted(GameData.getInstance().CurrentLocking.get()) : "Driving freely");
     }
 
-    public Command drive(Pose2d pose, LinearVelocity endvelocity){
-        try{
-            return new PathfindingCommand(
-            PoseUtils.getPose(pose, DriverStation.getAlliance().orElseThrow()), 
-            Constants.AutoConstraints, 
-            endvelocity,
-            () -> getState().Pose, 
-            () -> getState().Speeds,
-            (speeds, ff) -> setControl(autoDrive.withSpeeds(speeds).withWheelForceFeedforwardsX(ff.robotRelativeForcesX()).withWheelForceFeedforwardsY(ff.robotRelativeForcesY())), 
-            Constants.AutoPID, 
-            RobotConfig.fromGUISettings(), 
-            this);
-        }catch(Exception e){
-            DriverStation.reportWarning(e.getMessage(), e.getStackTrace());
-            return idle();
-        }
-    }
-
-    public Command driveOverTrench(){
+    public Command drive(Pose2d pose, Side side){
         return defer(() -> {
-            return drive(getState().Pose.nearest(List.of(PoseUtils.getPose(GlobalConstant.LeftTrench, DriverStation.getAlliance().orElseThrow()),PoseUtils.getPose(GlobalConstant.RightTrench, DriverStation.getAlliance().orElseThrow()))),MetersPerSecond.of(1));
-        }); 
-    }
-
-    public Command driveToTower(){
-        return defer(() -> {
-            List<Pose2d> towerpose = List.of(PoseUtils.getPose(new Pose2d(15,3.9,Rotation2d.kZero), DriverStation.getAlliance().orElseThrow()), PoseUtils.getPose(new Pose2d(15,4.7,Rotation2d.kZero), DriverStation.getAlliance().orElseThrow()));
-            return drive(getState().Pose.nearest(towerpose), MetersPerSecond.of(0));
+            try {
+                RobotConfig r = RobotConfig.fromGUISettings();
+                return new PathfindingCommand(
+                        PoseUtils.getPose(pose, DriverStation.getAlliance().orElseThrow(), side),
+                        Constants.AutoConstraints,
+                        () -> getState().Pose,
+                        () -> getState().Speeds,
+                        (speeds, ff) -> setControl(
+                                AutoDrive.withSpeeds(speeds).withWheelForceFeedforwardsX(ff.robotRelativeForcesX())
+                                        .withWheelForceFeedforwardsY(ff.robotRelativeForcesY())),
+                        Constants.AutoPID,
+                        r,
+                        this).withName("Driving to %.2f %.2f %.2f.".formatted(pose.getX(),pose.getY(),pose.getRotation().getDegrees()));
+            } catch (Exception e) {
+                DriverStation.reportWarning(e.getMessage(), e.getStackTrace());
+                return idle().withName("Driving to %.2f %.2f %.2f but with some error, now idling".formatted(pose.getX(),pose.getY(),pose.getRotation().getDegrees()));
+            }
         });
     }
 
-    public Command drive(LinearVelocity endVelocity, Pose2d... pose){
-         try{
-            return new PathfindThenFollowPath(
-                new PathPlannerPath(
-                    PathPlannerPath.waypointsFromPoses(Arrays.asList(pose).stream().map(p -> PoseUtils.getPose(p, DriverStation.getAlliance().orElseThrow())).toList()),
-                    Constants.AutoConstraints, 
-                    null, 
-                    new GoalEndState(endVelocity, getState().Pose.getRotation())),
-                Constants.AutoConstraints, 
-                () -> getState().Pose, 
-                () -> getState().Speeds, 
-                (speeds, ff) -> setControl(autoDrive.withSpeeds(speeds).withWheelForceFeedforwardsX(ff.robotRelativeForcesX()).withWheelForceFeedforwardsY(ff.robotRelativeForcesY())), 
-                Constants.AutoPID, 
-                RobotConfig.fromGUISettings(), 
-                () -> false,
-                this);
-        }catch(Exception e){
-            DriverStation.reportWarning(e.getMessage(), e.getStackTrace());
-            return idle();
-        }
+    public Command driveToShootPose(){
+        return drive(getState().Pose.nearest(
+            List.of(new Pose2d(13.2,2,Rotation2d.fromDegrees(120)),
+            new Pose2d(13.4,6,Rotation2d.fromDegrees(-120)),
+            new Pose2d(14.1,5.1,Rotation2d.fromDegrees(-150)),
+            new Pose2d(14.2,2.7,Rotation2d.fromDegrees(150)))
+            .stream().map(p -> PoseUtils.getPose(p, DriverStation.getAlliance().orElseThrow(), null)).toList()), getSide())
+                .beforeStarting(drive(new Pose2d(12,0.6,Rotation2d.k180deg), getSide()).onlyIf(() -> !inZone()));
     }
 
-    public Command setControl(Supplier<SwerveRequest> req){
-        return run(() -> {
-            setControl(req.get());
-            DogLog.log("Drivetrain/ControlMode", req.get().getClass().getSimpleName());
-            
-        });
-    }
-
-    @Override
-    public Command idle(){
-        return setControl(() -> new SwerveRequest.Idle());
-    }
-
-    @Override
-    public void periodic(){
-        if(DriverStation.isDisabled() || !hasDirectionUpdated){
-            DriverStation.getAlliance().ifPresent(allianceColor -> {
-                setOperatorPerspectiveForward(
-                    allianceColor == Alliance.Red
-                        ? GlobalConstant.RedAlliance
-                        : GlobalConstant.BlueAlliance
-                );
-                hasDirectionUpdated = true;
-            });
-        }
-
-        DogLog.log("Drivetrain/ModuleState", getState().ModuleStates);
-        DogLog.log("Drivetrain/ModuleTarget", getState().ModuleTargets);
-        DogLog.log("Drivetrain/RobotPose", getState().Pose);
-        DogLog.log("Drivetrain/RobotSpeeds", getState().Speeds);
-        DogLog.log("Drivetrain/LockingTarget", objects.isEmpty() ? "null" : objects.get().toString());
-        DogLog.log("Drivetrain/LockObjectPose", objects != null && objects.isPresent() ? PoseUtils.getPose(GlobalConstant.HubPose.toPose2d(), DriverStation.getAlliance().orElseThrow()) : null);
-        DogLog.log("Drivetrain/LockingAngle", manualFacing.TargetDirection);
-        DogLog.log("Drivetrain/LockingError", manualFacing.TargetDirection.minus(getState().Pose.getRotation()));
-        PoseUtils.getRobotZone().ifPresent(z -> DogLog.log("Drivetrain/CurrentPlace", z.toString()));
-        
-        IntStream.range(0, getModules().length).forEachOrdered((i) -> {
-            DogLog.log("Drivetrain/Module/%d/SteerMotorVelocity".formatted(i), getModule(i).getSteerMotor().getVelocity().getValue());
-            DogLog.log("Drivetrain/Module/%d/SteerMotorAcceleration".formatted(i), getModule(i).getSteerMotor().getAcceleration().getValue());
-            DogLog.log("Drivetrain/Module/%d/SteerError".formatted(i), getModule(i).getTargetState().angle.minus(getModule(i).getCurrentState().angle).getDegrees(),Degrees);
-            DogLog.log("Drivetrain/Module/%d/SteerAngle".formatted(i), getModule(i).getEncoder().getAbsolutePosition().getValue().in(Degrees), Degree);
-        });
-        
-        vision.getPose().ifPresent(s -> addVisionMeasurement(s.getFirst(), s.getSecond()));
-        try{
-            DogLog.log("Drivetrain/CurrentDoing", getCurrentCommand().getName());
-        }catch(NullPointerException e){
-            DogLog.log("Drivetrain/CurrentDoing", "nothing");
-        }
-
-    }
+    //  new Pose2d(13.2,2,Rotation2d.fromDegrees(120)),
+    //         new Pose2d(13.4,6,Rotation2d.fromDegrees(-120)),
+    //         new Pose2d(14.1,5.1,Rotation2d.fromDegrees(-150)),
+    //         new Pose2d(14.2,2.7,Rotation2d.fromDegrees(150))
 
     public Command resetHeading(){
-        return runOnce(() -> {
-            resetRotation(DriverStation.getAlliance().orElseThrow() == Alliance.Red ? GlobalConstant.RedAlliance : GlobalConstant.BlueAlliance);
-            setOperatorPerspectiveForward(DriverStation.getAlliance().orElseThrow() == Alliance.Red ? GlobalConstant.RedAlliance : GlobalConstant.BlueAlliance);
-        });
+        return Commands.runOnce(() -> resetRotation(DriverStation.getAlliance().orElseThrow() == Alliance.Red ? GlobalConstants.RedAlliance : GlobalConstants.BlueAlliance));
     }
 
     public Command fieldReset(){
         return runOnce(() -> {
-            resetPose(DriverStation.getAlliance().orElseThrow() == Alliance.Blue ? 
-            new Pose2d(Constants.RobotSize[0].div(2),Constants.RobotSize[1].div(2), GlobalConstant.RedAlliance.rotateBy(Rotation2d.k180deg)) : 
-            new Pose2d(Meters.of(16.566802).minus(Constants.RobotSize[0].div(2)), Meters.of(8.072088).minus(Constants.RobotSize[1].div(2)), GlobalConstant.BlueAlliance.rotateBy(Rotation2d.k180deg)));
+            resetPose(DriverStation.getAlliance().orElseThrow() == Alliance.Blue
+                    ? new Pose2d(Constants.RobotSize[0].div(2), Constants.RobotSize[1].div(2),
+                            GlobalConstants.RedAlliance.rotateBy(Rotation2d.k180deg))
+                    : new Pose2d(Meters.of(16.566802).minus(Constants.RobotSize[0].div(2)),
+                            Meters.of(8.072088).minus(Constants.RobotSize[1].div(2)),
+                            GlobalConstants.BlueAlliance.rotateBy(Rotation2d.k180deg)));
         });
     }
 
     @Override
-    public void resetPose(Pose2d Pose){
-        if(SimulatedInstance != null) SimulatedInstance.mapleSimDrive.setSimulationWorldPose(Pose);
-        super.resetPose(Pose);
+    public void periodic(){
+        if (DriverStation.isDisabled() || !hasDirectionUpdated) {
+            DriverStation.getAlliance().ifPresent(allianceColor -> {
+                setOperatorPerspectiveForward(
+                        allianceColor == Alliance.Red
+                                ? GlobalConstants.RedAlliance
+                                : GlobalConstants.BlueAlliance);
+                hasDirectionUpdated = true;
+            });
+        }
+
+
+        vision = Vision.getInstance();
+        DogLog.log("Driver/Vision/IsVisionAvalible", vision == null);
+
+        log();
     }
 
-    private void simulationInit(){
-        SimTime = Utils.getCurrentTimeSeconds();
+    public void log(){
+        DogLog.log("Driver/Drivetrain/RobotPose", getState().Pose);
+        DogLog.log("Driver/Drivetrain/ModuleState", getState().ModuleStates);
 
-        /* Run simulation at a faster rate so PID gains behave more reasonably */
+        DogLog.log("Debug/Drivetrain/ModuleTarget", getState().ModuleTargets);
+        DogLog.log("Debug/Drivetrain/LockingError", ManualFacing.TargetDirection.minus(getState().Pose.getRotation()));
+        DogLog.log("Debug/Drivetrain/TimeStamp", getState().Timestamp);
+
+        DogLog.log("Debug/Drivetrain/ChassisForce", Arrays.stream(getModules()).map(m -> m.getDriveMotor().getStatorCurrent().getValueAsDouble()*m.getDriveMotor().getMotorKT().getValueAsDouble()/Constants.WheelRadius.in(Meters)/GlobalConstants.G.in(MetersPerSecondPerSecond)).mapToDouble(Double::doubleValue).sum());;
+    }
+
+    public Command updateVisionPose(){
+        return Commands.runOnce(() -> {
+            if(vision != null){
+                Optional<Pair<Pose2d,Double>> res = vision.getRobotPose();
+                if(DriverStation.isDisabled()) res.ifPresent(r -> resetPose(r.getFirst()));
+                else res.ifPresent(r -> addVisionMeasurement(r.getFirst(), r.getSecond()));
+                DogLog.log("Driver/Vision/isUseVisionPose", true);
+                resetHeading();
+                
+                hasVisionUpdated = true;
+            }else{
+                DogLog.log("Driver/Vision/isUseVisionPose", false);
+
+            }
+        }).ignoringDisable(true);
+    }
+
+    private void autoInit(){
+        try{
+            AutoBuilder.configure(
+                () -> getState().Pose,
+                this::resetPose,
+                () -> getState().Speeds,
+                (speeds, ff) -> setControl(AutoDrive.withSpeeds(speeds).withWheelForceFeedforwardsX(ff.robotRelativeForcesX()).withWheelForceFeedforwardsY(ff.robotRelativeForcesY())),
+                Constants.AutoPID,
+                RobotConfig.fromGUISettings(),
+                () -> DriverStation.getAlliance().orElseThrow() == Alliance.Red,
+                this
+            );
+        }catch(Exception e){
+            DriverStation.reportError(e.getMessage(), e.getStackTrace());
+        }
+    }
+
+    /**
+     * initialize the simulation
+     */
+    private void simInit(){
+        SimTime = Utils.getCurrentTimeSeconds();
         SimNotifier = new Notifier(() -> {
             final double currentTime = Utils.getCurrentTimeSeconds();
             double deltaTime = currentTime - SimTime;
@@ -243,31 +244,39 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> imp
             /* use the measured time delta, get battery voltage from WPILib */
             updateSimState(deltaTime, RobotController.getBatteryVoltage());
         });
+        SimNotifier.setName("DrivetrainSimNotifier");
         SimNotifier.startPeriodic(SimLoopTime.in(Seconds));
     }
 
-    private void autoInit(){
-        try{
-            AutoBuilder.configure(
-                () -> getState().Pose, 
-                this::resetPose, 
-                () -> getState().Speeds, 
-                (speeds, ff) -> autoDrive.withSpeeds(speeds).withWheelForceFeedforwardsX(ff.robotRelativeForcesX()).withWheelForceFeedforwardsY(ff.robotRelativeForcesY()), 
-                Constants.AutoPID, 
-                RobotConfig.fromGUISettings(), 
-                () -> DriverStation.getAlliance().orElseThrow() == Alliance.Blue, 
-                this);
-        }catch(Exception e){
-            DriverStation.reportError(e.getMessage(), e.getStackTrace());
-        }
+    @Override
+    public void simulationPeriodic(){
+
+    }
+
+    @Override
+    public void setControl(SwerveRequest req){
+        super.setControl(req);
+        DogLog.log("Driver/Drivetrain/CurrentMode", req.toString().getClass().getSimpleName());
     }
 
     public static Drivetrain getInstance(){
-        inst = inst == null ? new Drivetrain(Constants.constants,Modules.FrontLeft.constant, Modules.FrontRight.constant, Modules.BackLeft.constant, Modules.BackRight.constant) : inst;
+        inst = inst == null ? new Drivetrain() : inst;
         return inst;
     }
 
-    public boolean inZone(){
-        return (DriverStation.getAlliance().orElseThrow() == Alliance.Red && PoseUtils.getRobotZone().get() == FieldPlace.RedZone) || DriverStation.getAlliance().orElseThrow() == Alliance.Blue && PoseUtils.getRobotZone().get() == FieldPlace.BlueZone;
+    public double getCurrent(){
+        return Arrays.stream(getModules()).map(s -> s.getDriveMotor().getSupplyCurrent().getValueAsDouble()+s.getSteerMotor().getSupplyCurrent().getValueAsDouble()).mapToDouble(Double::doubleValue).sum();
+    }
+
+    public boolean inZone() {
+        return (DriverStation.getAlliance().orElseThrow() == Alliance.Red
+                && PoseUtils.getRobotZone().get() == FieldPlace.RedZone)
+                || DriverStation.getAlliance().orElseThrow() == Alliance.Blue
+                        && PoseUtils.getRobotZone().get() == FieldPlace.BlueZone;
+    }
+
+    public Side getSide(){
+        Distance dy = getState().Pose.getMeasureY().minus(GlobalConstants.CenterLine.getSecond());
+        return (DriverStation.getAlliance().orElseThrow() == Alliance.Red ? dy.gt(Meters.zero()) : dy.lt(Meters.zero())) ? Side.LEFT : Side.RIGHT;
     }
 }

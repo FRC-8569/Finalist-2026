@@ -4,22 +4,26 @@
 
 package frc.robot;
 
-import java.util.Optional;
-
+import static edu.wpi.first.units.Units.Degrees;
+import static edu.wpi.first.units.Units.MetersPerSecond;
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Auto.Auto;
 import frc.robot.Drivetrain.Constants;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
-import frc.robot.Intake.Intake.IntakePosition;
-import frc.utils.FieldObjects;
+import frc.robot.Shooter.Shooter;
 
 public class RobotContainer {
   public Drivetrain drivetrain = Drivetrain.getInstance();
   public Intake intake = Intake.getInstance();
+  public Shooter shooter = Shooter.getInstance();
   public CommandXboxController DrivetrainController = new CommandXboxController(0);
   public CommandXboxController IntakeController = new CommandXboxController(1);
 
@@ -28,6 +32,7 @@ public class RobotContainer {
       () -> Constants.MaxVelocity.times(DrivetrainController.getLeftY()).times(Constants.DriveVelocity.div(Constants.MaxVelocity)), 
       () -> Constants.MaxVelocity.times(DrivetrainController.getLeftX()).times(Constants.DriveVelocity.div(Constants.MaxVelocity)), 
       () -> Constants.MaxOmega.times(-DrivetrainController.getRightX())));
+
 
    configureBindings();
 
@@ -43,21 +48,26 @@ public class RobotContainer {
 
 
   private void configureBindings() {
-    DrivetrainController.a().onTrue(drivetrain.withHeading(Optional.of(FieldObjects.HUB)).ignoringDisable(true));
-    DrivetrainController.b().onTrue(drivetrain.withHeading(Optional.empty()).ignoringDisable(true));
-    DrivetrainController.x().onTrue(drivetrain.withHeading(Optional.of(FieldObjects.Alliance)).ignoringDisable(true));
     DrivetrainController.start().onTrue(drivetrain.resetHeading());
     DrivetrainController.back().onTrue(drivetrain.fieldReset());
-    DrivetrainController.y().onTrue(intake.resetPose().ignoringDisable(true));
+    DrivetrainController.povDown().onTrue(drivetrain.updateVisionPose());
     
-    IntakeController.rightBumper().onTrue(intake.moveIntake(IntakePosition.Idle));
-    IntakeController.leftBumper().onTrue(intake.moveIntake(IntakePosition.Out));
+    IntakeController.rightBumper().onTrue(intake.moveIntake(false));
+    IntakeController.leftBumper().onTrue(intake.moveIntake(true));
     IntakeController.leftTrigger().whileTrue(intake.intake(true));
     IntakeController.rightTrigger().whileTrue(intake.intake(false));
+    IntakeController.b().onTrue(shooter.setShooterState(MetersPerSecond.of(2))); 
+    IntakeController.a().onTrue(shooter.stopShooter());
+    IntakeController.y().whileTrue(shooter.setState(new SwerveModuleState(10, new Rotation2d(Degrees.of(10)))));
+    IntakeController.x().onTrue(shooter.setShooterState(MetersPerSecond.zero()));
     IntakeController.start().onTrue(intake.CalibrateIntake());
+    IntakeController.povDown().onTrue(shooter.resetPitch());
+
+    new Trigger(() -> DrivetrainController.povUp().getAsBoolean() && IntakeController.povUp().getAsBoolean())
+      .onTrue(Commands.idle());
   }
 
   public Command getAutonomousCommand() {
-    return Auto.getAutoCommand();
+    return Auto.getAutoCommand().beforeStarting(drivetrain.updateVisionPose());
   }
 }

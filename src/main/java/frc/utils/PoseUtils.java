@@ -7,10 +7,9 @@ import java.util.stream.Stream;
 
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Drivetrain;
 
 public class PoseUtils {
@@ -19,23 +18,19 @@ public class PoseUtils {
     }
 
 
-    public static Pose2d getPose(Pose2d pose, Alliance alliance){ 
-        var x = pose.getMeasureX();
-        var delta = Constants.CenterLine.minus(x);
+    public static Pose2d getPose(Pose2d pose, Alliance alliance, Side side){
+        Pair<Distance, Distance> delta = Pair.of(GlobalConstants.CenterLine.getFirst().minus(pose.getMeasureX()), GlobalConstants.CenterLine.getSecond().minus(pose.getMeasureY()));
+        Pair<Boolean, Boolean> shouldMirror = Pair.of(alliance == Alliance.Blue ? delta.getFirst().lt(Meters.zero()) : delta.getFirst().gt(Meters.zero()), 
+                                                    side != null ? ((side == Side.LEFT) == ((alliance == Alliance.Blue) == delta.getSecond().lt(Meters.zero()))) : false);
 
-        boolean shouldMirror = alliance == Alliance.Blue ? delta.lt(Meters.of(0)) :  delta.gt(Meters.of(0)) ;
-        SmartDashboard.putBoolean("debug/ShouldMirror", shouldMirror);
-
-        if (!shouldMirror) return pose;
-
-        var mirroredX = Constants.CenterLine.plus(delta);
-        return new Pose2d(mirroredX, pose.getMeasureY(), Rotation2d.fromDegrees(-pose.getRotation().getDegrees()));
+        return new Pose2d(
+            shouldMirror.getFirst() ? GlobalConstants.CenterLine.getFirst().plus(delta.getFirst()) : pose.getMeasureX(), 
+            shouldMirror.getSecond() ? GlobalConstants.CenterLine.getSecond().plus(delta.getSecond()) : pose.getMeasureY(),
+            shouldMirror.getFirst() ? pose.getRotation().unaryMinus() : pose.getRotation());
     }
 
-
-    private class Constants {
-        public static final Distance CenterLine = Meters.of(8.27052575);
-        
+    public enum Side{
+        LEFT, RIGHT;
     }
 
     public enum FieldPlace{

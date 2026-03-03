@@ -4,6 +4,8 @@ import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Inches;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.RadiansPerSecond;
 import static edu.wpi.first.units.Units.Rotations;
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
@@ -11,6 +13,7 @@ import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.units.measure.Angle;
@@ -19,53 +22,46 @@ import edu.wpi.first.units.measure.LinearVelocity;
 
 public class Constants {
     public static final CANBus bus = new CANBus("rio");
-    public static final Transform3d ShooterPlace = new Transform3d(0, 0, 0, Rotation3d.kZero);
+    public static final Transform3d ShooterPlace = new Transform3d(89.20000, 74.80000, 402.60000, new Rotation3d(Degrees.of(15), Degrees.of(0),Degrees.of(0)));
 
    public class Pitch {
         public static final int MotorID = 54;
         public static final int EncoderID = 56;
         public static final double GearRatio = 10;
-        public static final Angle MaxPitch = Degrees.of(55);
-        public static final Angle PitchOffset = Rotations.of(0);
-        public static final Slot0Configs PitchPID = new Slot0Configs()
-            .withKP(0.1).withKD(0).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
+        public static final Pair<Angle, Angle> PitchingAngle = Pair.of(Rotations.of(0), Rotations.of(0.044));
+        public static final Angle PitchOffset = Rotations.of(-0.151361875);
+        public static final Slot0Configs PitchPID = new Slot0Configs() //PositionVoltage
+            .withKP(3.5).withKD(0.015)
+            .withKS(0.3).withKV(0.95).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
         public static final MotionMagicConfigs PitchMagic = new MotionMagicConfigs()
-            .withMotionMagicCruiseVelocity(1)
-            .withMotionMagicAcceleration(1);
+            .withMotionMagicCruiseVelocity(0.5)
+            .withMotionMagicAcceleration(1.5);
         public static final SoftwareLimitSwitchConfigs PitchLimit = new SoftwareLimitSwitchConfigs()
             .withForwardSoftLimitEnable(true).withReverseSoftLimitEnable(true)
-            .withForwardSoftLimitThreshold(MaxPitch).withReverseSoftLimitThreshold(0);
-
+            .withReverseSoftLimitThreshold(PitchingAngle.getFirst()).withForwardSoftLimitThreshold(PitchingAngle.getSecond());
             
    }
 
    public class Shoot {
     public static final int MotorID = 55;
     public static final double GearRatio = 1;
-    public static final Distance WheelCirc = Inches.of(4).times(Math.PI);
-    public static final LinearVelocity MaxVelocity = MetersPerSecond.of(122.8/GearRatio*WheelCirc.in(Meters));
+    public static final Distance WheelRadius = Inches.of(2);
+    public static final LinearVelocity MaxVelocity = MetersPerSecond.of(RPM.of(7368).in(RadiansPerSecond)*WheelRadius.in(Meters));
+    
+    // TorqueCurrentFOC control set
     public static final Slot0Configs ShootPID = new Slot0Configs()
-        .withKP(0.1).withKD(0).withKV(12.4/122.8*GearRatio).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
+        .withKP(5).withKS(2.5).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseVelocitySign);
+    
+
+    // velocity control set
+    // public static final Slot0Configs ShootPID = new Slot0Configs()
+    //     .withKP(0.35).withKD(0.003)
+    //     .withKS(0.32).withKV(0.07)
+    //     .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseVelocitySign);
     public static final MotionMagicConfigs ShootMagic = new MotionMagicConfigs()
-        .withMotionMagicCruiseVelocity(1)
-        .withMotionMagicAcceleration(1);
+        .withMotionMagicCruiseVelocity(5)
+        .withMotionMagicAcceleration(60);
    }
 
-   public class Index {
-    public static final int MotorID = 56;
-    public static final int GearRatio = 1;
-    public static Slot0Configs IndexPID = new Slot0Configs()
-        .withKP(0).withKD(0).withKV(12.4/122.8*GearRatio) .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseVelocitySign);
-    public static MotionMagicConfigs IndexMagic = new MotionMagicConfigs()
-        .withMotionMagicAcceleration(1);
-   }
-
-   public class Spindex {
-    public static final int MotorID = 57;
-    public static final int GearRatio = 1;
-    public static final Slot0Configs SpindexPID = new Slot0Configs()
-        .withKP(0).withKD(0).withKV(12.4/122.8*GearRatio); //kraken x44 with foc control
-    public static final MotionMagicConfigs SpindexMagic = new MotionMagicConfigs()
-        .withMotionMagicAcceleration(1);
-   }
+   
 }
