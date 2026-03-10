@@ -17,25 +17,19 @@ public class Constants {
     public static final CANBus bus = new CANBus("Drivetrain");
     public class Tongue {
         public static final int MotorID = 51;
-        public static final int EncdoerID = 53;
         public static final Slot0Configs TonguePID = new Slot0Configs()
-            .withKP(7).withKD(0.3)
+            .withKP(8).withKD(0.3)
             .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
         
         public static final MotionMagicConfigs TongueMagic = new MotionMagicConfigs()
-            .withMotionMagicExpo_kV(0.009)
-            .withMotionMagicExpo_kA(0.3);
+            .withMotionMagicExpo_kV(0.005)
+            .withMotionMagicExpo_kA(0.25);
 
         public static final SoftwareLimitSwitchConfigs TongueLimit = new SoftwareLimitSwitchConfigs()
             .withForwardSoftLimitThreshold(1.45)
             .withReverseSoftLimitThreshold(0)
             .withForwardSoftLimitEnable(true)
             .withReverseSoftLimitEnable(true);
-        public static final CurrentLimitsConfigs TongueCurrentLimit = new CurrentLimitsConfigs()
-            .withSupplyCurrentLimit(3.2)
-            .withStatorCurrentLimit(8.5)
-            .withStatorCurrentLimitEnable(true)
-            .withSupplyCurrentLimitEnable(true);
 
         public static final double GearRatio = 20*1/1.5;
         public static final Distance tolerance = Centimeters.of(1);
@@ -51,7 +45,7 @@ public class Constants {
             .withMotionMagicAcceleration(100);
         public static final double GearRatio = 32.0/15;
         public static final Distance WheelRadius = Inches.of(2.25).div(2);
-        public static final double[] SpeedRange = {3,10.5};
+        public static final double[] SpeedRange = {5,10.5};
     }
 
 }

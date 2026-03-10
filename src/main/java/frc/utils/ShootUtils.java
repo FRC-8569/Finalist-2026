@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import dev.doglog.DogLog;
 
+import static edu.wpi.first.units.Units.Degree;
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
@@ -11,7 +12,9 @@ import static edu.wpi.first.units.Units.Radians;
 
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Transform3d;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.Timer;
@@ -84,64 +87,14 @@ public class ShootUtils {
      * Solves for the Minimum Velocity trajectory using Newton's Method.
      */
     private static Optional<RobotState> solveMinVelocity(Transform3d Target) {
-        Angle yaw = Target.getRotation().getMeasureZ();
-        double distance = Math.hypot(Target.getX(), Target.getY());
-        double z = Target.getZ();
+        Rotation2d yaw = Rotation2d.fromRadians(Math.atan2(Target.getY(), Target.getX()));
 
-        final int maxIters = 100;
-        final double tol = Degrees.of(0.1).in(Radians);   // radians
-        final double eps = 1e-9;
-
-        if (!Double.isFinite(distance) || distance < eps || !Double.isFinite(z)) {
-            return Optional.empty();
-        }
-
-        // Initial guess (radians)
-        // Use 45 degrees (PI/4) as a robust start to avoid singularity at z=0
-        double pPrev = Math.PI / 4.0;
-        double p = pPrev;
-        boolean converged = false;
-
-        // Solve A(theta) = distance*cos(2theta) + z*sin(2theta) = 0
-        // (stationary point of required launch speed)
-        timer.reset();
-        timer.start();
-        for (int i = 0; i < maxIters; i++) {
-            double s2 = Math.sin(2.0 * pPrev);
-            double c2 = Math.cos(2.0 * pPrev);
-
-            double A = distance * c2 + z * s2;
-            double dA = -2.0 * distance * s2 + 2.0 * z * c2;
-
-            if (!Double.isFinite(A) || !Double.isFinite(dA) || Math.abs(dA) < eps) {
-                return Optional.empty();
-            }
-
-            double pNext = pPrev - (A / dA); // standard Newton step
-            if (!Double.isFinite(pNext)) {
-                return Optional.empty();
-            }
-
-            p = pNext;
-            if (Math.abs(pNext - pPrev) < tol) {
-                converged = true;
-                break;
-            }
-            pPrev = pNext;
-            DogLog.log("BoringMath/ShooterCalculation/NewtonMethod", pPrev);
-            DogLog.log("BoringMath/ShooterCalculation/CalculateTime", timer.get());
-        }
-        timer.stop();
-
-        if (!converged) {
-            return Optional.empty();
-        }
-
-        double v = getVelocity(Target, Radians.of(p));
-
-        if(Math.max(Pitch.PitchingAngle.getFirst().in(Radians), Math.min(p, Pitch.PitchingAngle.getSecond().in(Radians))) != p || MetersPerSecond.of(v).gt(Shoot.MaxVelocity)) return Optional.empty();
         
-        return Optional.of(new RobotState(new Rotation2d(yaw), MetersPerSecond.of(v), Radians.of(p)));
+        DogLog.log("Debug/Prediction/Target", drivetrain.getState().Pose.rotateBy(Rotation2d.k180deg).plus(new Transform2d(Target.getX(),Target.getY(),Target.getRotation().toRotation2d())));
+        DogLog.log("Debug/Prediction/State", new SwerveModuleState());
+        DogLog.log("Debug/Prediction/Facing", yaw.getDegrees(), Degree);
+
+        return Optional.of(new RobotState(yaw, MetersPerSecond.zero(), Radians.zero()));
     }
 
     /**
@@ -180,6 +133,10 @@ public class ShootUtils {
 
         if(Math.max(Pitch.PitchingAngle.getFirst().in(Radians), Math.min(theta, Pitch.PitchingAngle.getSecond().in(Radians))) != theta || MetersPerSecond.of(v).gt(Shoot.MaxVelocity)) return Optional.empty();
         
+
+        DogLog.log("Debug/Prediction/Target", drivetrain.getState().Pose.rotateBy(Rotation2d.k180deg).plus(new Transform2d(Target.getX(), Target.getY(), Target.getRotation().toRotation2d())));
+        DogLog.log("Debug/Prediction/facing", new Rotation2d(yaw));
+        DogLog.log("Debug/Prediction/State", new SwerveModuleState(v, Rotation2d.fromRadians(theta)));
 
         return Optional.of(new RobotState(
             new Rotation2d(yaw), 

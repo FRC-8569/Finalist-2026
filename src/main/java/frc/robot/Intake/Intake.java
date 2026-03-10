@@ -8,6 +8,7 @@ import static edu.wpi.first.units.Units.RotationsPerSecond;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.CoastOut;
 import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.DynamicMotionMagicExpoTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.MotionMagicExpoTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.MotionMagicVelocityVoltage;
 import com.ctre.phoenix6.controls.StaticBrake;
@@ -20,6 +21,7 @@ import dev.doglog.DogLog;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Threads;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.simulation.FlywheelSim;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -63,7 +65,7 @@ public class Intake implements Subsystem{
         TongueConfig.withSlot0(Tongue.TonguePID);
         TongueConfig.withMotionMagic(Tongue.TongueMagic);
         TongueConfig.withSoftwareLimitSwitch(Tongue.TongueLimit);
-        TongueConfig.withCurrentLimits(Tongue.TongueCurrentLimit);
+        // TongueConfig.withCurrentLimits(Tongue.TongueCurrentLimit);
 
         RollConfig.MotorOutput
             .withInverted(InvertedValue.CounterClockwise_Positive)
@@ -93,16 +95,30 @@ public class Intake implements Subsystem{
      public Command moveIntake(boolean isOut){
         return run(() -> {
             TongueMotor.setControl(TonguePID.withPosition(isOut ? 1.4 : 0));
-        }).until(() -> TongueMotor.getVelocity().getValue().abs(RotationsPerSecond) < 0.01 && getIntakePosition().isNear(TonguePID.getPositionMeasure(), 0.05))
+        }).until(() -> TongueMotor.getVelocity().getValue().abs(RotationsPerSecond) < 0.01 && getIntakePosition().isNear(TonguePID.getPositionMeasure(), 0.1))
             .finallyDo(() -> {
                 TongueMotor.setControl(isOut ? new CoastOut(): new StaticBrake());
             }).withName("MovingIntake").beforeStarting(CalibrateIntake().onlyIf(() -> hasStalled));
     }
 
     public Command intake(boolean isIntake){
-        double drivetrainVelocity = Math.hypot(Drivetrain.getInstance().getState().Speeds.vxMetersPerSecond, Drivetrain.getInstance().getState().Speeds.vyMetersPerSecond);
-        double v = Math.max(Roller.SpeedRange[0], Math.min(drivetrainVelocity, Roller.SpeedRange[1]));
-        return run(() -> RollMotor.setControl(RollingPID.withVelocity(RadiansPerSecond.of(v/Roller.WheelRadius.in(Meters))))).handleInterrupt(() -> RollMotor.stopMotor());
+        double v = Math.hypot(Drivetrain.getInstance().getState().Speeds.vxMetersPerSecond, Drivetrain.getInstance().getState().Speeds.vyMetersPerSecond);
+        return setRollVelocity(MetersPerSecond.of(v).times(2));
+    }
+
+    public Command setRollVelocity(LinearVelocity velocity){
+        double v = Math.max(Roller.SpeedRange[0], Math.min(Roller.SpeedRange[1], velocity.in(MetersPerSecond)));
+        return run(() -> {
+            RollMotor.setControl(RollingPID.withVelocity(RadiansPerSecond.of(v/Roller.WheelRadius.in(Meters))));
+            if(RollMotor.getStatorCurrent().getValue().gt(Amps.of(80))){
+                RollMotor.set(-0.1);
+                try{
+                    Thread.sleep(100);
+                }catch(Exception e){}
+                RollMotor.setControl(RollingPID.withVelocity(RadiansPerSecond.of(v/Roller.WheelRadius.in(Meters))));
+            }
+        })
+                .handleInterrupt(() -> RollMotor.stopMotor());
     }
 
     public Command CalibrateIntake(){
@@ -114,30 +130,25 @@ public class Intake implements Subsystem{
             TongueMotor.setPosition(0);
             TongueMotor.getConfigurator().apply(Tongue.TongueLimit.withReverseSoftLimitEnable(true));
             hasStalled = false;
-        }).until(() -> TongueMotor.getStatorCurrent().getValue().gt(Amps.of(8))).withName("Calibrating");
+        }).until(() -> TongueMotor.getStatorCurrent().getValue().gt(Amps.of(15))).withName("Calibrating");
     }
 
     @Override
     public void periodic(){
         if(DriverStation.isDisabled() && TongueMotor.getControlMode().getValue() != ControlModeValue.CoastOut) TongueMotor.setControl(new CoastOut());
-        if(TongueMotor.getStatorCurrent().getValue().gt(Tongue.StallLimit) && (getCurrentCommand() != null && getCurrentCommand().getName() != "Calibrating")){
-            hasStalled = true;
-            getCurrentCommand().cancel();
-        }
+        // 
+        
         log();
 
     }
 
-    @Override
-    public void simulationPeriodic(){
-
-    }
 
     public void log(){
         DogLog.log("Driver/Intake/IntakePosition", getIntakePosition());
         DogLog.log("Driver/Intake/TongueHasStalled", hasStalled);
+        DogLog.log("Debug/Intake/TongueAmps", TongueMotor.getStatorCurrent().getValue());
         DogLog.log("Debug/Intake/TongueControlMode", TongueMotor.getControlMode().getValue().toString());
-        DogLog.log("Debug/Intake/DebounceTimer", DebounceTimer.get());
+        DogLog.log("Debug/Intake/RollerCurrent", RollMotor.getStatorCurrent().getValue());
     }
 
     public static Intake getInstance(){

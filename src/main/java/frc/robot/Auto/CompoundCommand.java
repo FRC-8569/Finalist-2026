@@ -8,6 +8,7 @@ import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
 import frc.utils.GameData;
+import frc.utils.PoseUtils.ShootPreset;
 import frc.utils.PoseUtils.Side;
 import frc.utils.ShootUtils.RobotState;
 
@@ -16,10 +17,9 @@ public class CompoundCommand {
     private static Intake intake = Intake.getInstance();
     private static Shooter shooter = Shooter.getInstance();
 
-    public static Command shootFuel(Pose2d pose, Side side){
-        RobotState state = GameData.getInstance().predictRobotState().get();
-        return drivetrain.drive(new Pose2d(pose.getX(),pose.getY(), state.facing()), side)
-                    .alongWith(shooter.setState(new SwerveModuleState(state.vel(),new Rotation2d(state.pitch()))));
+    public Command shootFuel(ShootPreset set){
+        return drivetrain.drive(set.getTargetPose(), null)
+                .andThen(shooter.setState(set.getState()));
     }
 
     public static Command intakeFuel(Pose2d pose, Side side){

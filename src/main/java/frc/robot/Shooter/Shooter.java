@@ -3,8 +3,10 @@ package frc.robot.Shooter;
 import static edu.wpi.first.units.Units.Celsius;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.Newton;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
 
+import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
@@ -25,44 +27,46 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
+import frc.utils.GameData;
 
 public class Shooter implements Subsystem {
     public TalonFX ShootingMotor, PitchingMotor;
-    public CANcoder PitchingEncoder;
-
+    public CANcoder PitchEncoder;
+    
     public MotionMagicVoltage PitchingPID;
     public MotionMagicVelocityTorqueCurrentFOC ShootPID;
     public DutyCycleOut IndexPID, SpindexPID;
 
-    private TalonFXConfiguration PitchConfig, ShootConfig, IndexConfig, SpindexConfig;
+    private TalonFXConfiguration PitchConfig, ShootConfig;
     private CANcoderConfiguration PitchEncoderConfig;
     public SwerveModuleState targetState = new SwerveModuleState(0, Rotation2d.kZero);
     
-    public Alert ShooterAlert;
+    public Alert ShootTempAlert, ShootConnectAlert, ShootStallingError;
 
     private static Shooter inst;
     private Shooter(){
         PitchingMotor = new TalonFX(Pitch.MotorID, Constants.bus);
         ShootingMotor = new TalonFX(Shoot.MotorID, Constants.bus);
-        PitchingEncoder = new CANcoder(Pitch.EncoderID, Constants.bus);
+        PitchEncoder = new CANcoder(Pitch.EncoderID, Constants.bus);
     
         PitchingPID = new MotionMagicVoltage(0);
         ShootPID = new MotionMagicVelocityTorqueCurrentFOC(0);
         IndexPID = new DutyCycleOut(0);
         SpindexPID = new DutyCycleOut(0);
 
-        ShooterAlert = new Alert("Robot", "Shooter Overheated", AlertType.kWarning);
+        ShootTempAlert = new Alert("Robot", "Shooter Overheated", AlertType.kWarning);
+        ShootConnectAlert = new Alert("Robot", "Shooting Motor not connected", AlertType.kError);
+        ShootStallingError = new Alert("Robot", "ShootStallingError", AlertType.kWarning);
 
         ShootConfig = new TalonFXConfiguration();
         PitchConfig = new TalonFXConfiguration();
-        IndexConfig = new TalonFXConfiguration();
-        SpindexConfig = new TalonFXConfiguration();
         PitchEncoderConfig = new CANcoderConfiguration();
 
         PitchConfig.MotorOutput
@@ -76,19 +80,9 @@ public class Shooter implements Subsystem {
 
         ShootConfig.MotorOutput
             .withNeutralMode(NeutralModeValue.Coast)
-            .withInverted(InvertedValue.Clockwise_Positive);
+            .withInverted(InvertedValue.CounterClockwise_Positive);
         ShootConfig.Feedback
             .withSensorToMechanismRatio(Shoot.GearRatio);
-        ShootConfig.MotionMagic
-            .withMotionMagicAcceleration(25);
-
-        IndexConfig.MotorOutput
-            .withInverted(InvertedValue.Clockwise_Positive)
-            .withNeutralMode(NeutralModeValue.Coast);
-
-        SpindexConfig.MotorOutput
-            .withInverted(InvertedValue.Clockwise_Positive)
-            .withNeutralMode(NeutralModeValue.Coast);
 
         PitchEncoderConfig.MagnetSensor
             .withSensorDirection(SensorDirectionValue.Clockwise_Positive)
@@ -96,36 +90,39 @@ public class Shooter implements Subsystem {
 
         ShootConfig.withSlot0(Shoot.ShootPID);
         ShootConfig.withMotionMagic(Shoot.ShootMagic);
-        PitchingEncoder.getConfigurator().apply(PitchEncoderConfig);
-
+        
         PitchingMotor.getConfigurator().apply(PitchConfig);
         ShootingMotor.getConfigurator().apply(ShootConfig);
-
-        PitchingMotor.setPosition(0);
+        PitchEncoder.getConfigurator().apply(PitchEncoderConfig);
 
         register();
-
-        setDefaultCommand(setState(() -> new SwerveModuleState(MetersPerSecond.of(1), getState().angle)));
     }
 
     public SwerveModuleState getState(){
         return new SwerveModuleState(
             MetersPerSecond.of(ShootingMotor.getVelocity().getValue().in(RadiansPerSecond)*Shoot.WheelRadius.in(Meters)),
-            new Rotation2d(PitchingEncoder.getPosition().getValue())
+            new Rotation2d(PitchingMotor.getPosition().getValue())
         );
     }
 
     public Command setState(SwerveModuleState state){
-        if(state.angle.getMeasure().lt(Pitch.PitchingAngle.getFirst()) || state.angle.getMeasure().gt(Pitch.PitchingAngle.getSecond()) || state.speedMetersPerSecond > Shoot.MaxVelocity.in(MetersPerSecond)) return idle();
-        else return run(() -> {
+        return run(() -> {
             PitchingMotor.setControl(PitchingPID.withPosition(state.angle.getMeasure()));
             ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(state.speedMetersPerSecond/Shoot.WheelRadius.in(Meters))));
             targetState = state;
-        }).until(() -> PitchingMotor.getPosition().getValue().isNear(PitchingPID.getPositionMeasure(), 0.05) && ShootingMotor.getPosition().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05));
+        }).withName("Shooting in %.2f m/s %.2f degree".formatted(state.speedMetersPerSecond, state.angle.getDegrees()));
     }
 
-    private Command setState(Supplier<SwerveModuleState> state){
+    public Command setState(Supplier<SwerveModuleState> state){
         return setState(state.get());
+    }
+
+    public Command shoot(){
+        try{
+            return setState(GameData.getInstance().predictRobotState().<SwerveModuleState>map(s -> new SwerveModuleState(s.vel(), new Rotation2d(s.pitch()))).get());
+        }catch(NoSuchElementException e){
+            return Commands.idle();
+        }
     }
 
     public Command setShooterState(LinearVelocity vel){
@@ -147,7 +144,7 @@ public class Shooter implements Subsystem {
     }
     
     public Command resetPitch(){
-        return Commands.runOnce(() -> PitchingMotor.setPosition(0));
+        return Commands.runOnce(() -> PitchingMotor.setPosition(0)).ignoringDisable(true);
     }
 
     @Override
@@ -155,10 +152,15 @@ public class Shooter implements Subsystem {
         DogLog.log("Debug/Shooter/PitchingMotorState", PitchingMotor.getControlMode().toString());
         DogLog.log("Debug/Shooter/PitchTarget", PitchingPID.getPositionMeasure());
         DogLog.log("Debug/Shooter/PitchingAngle", PitchingMotor.getPosition().getValue());
+        DogLog.log("Debug/Shooter/ShooterForce", (ShootingMotor.getStatorCurrent().getValueAsDouble()*ShootingMotor.getMotorKT().getValueAsDouble())/Shoot.WheelRadius.in(Meters), Newton);
+        DogLog.log("Debug/Shooter/ShootEnergyCost", ShootingMotor.getSupplyCurrent().getValue().times(ShootingMotor.getSupplyVoltage().getValue()));
         DogLog.log("Driver/Shooter/TargetState", targetState);
         DogLog.log("Driver/Shooter/CurrentState", getState());
+        if(getCurrentCommand() != null) DogLog.log("Debug/Shooter/CurrentCommand", getCurrentCommand().getName());
 
-        ShooterAlert.set(ShootingMotor.getDeviceTemp().getValue().gt(Celsius.of(60)));
+        ShootTempAlert.set(ShootingMotor.getDeviceTemp().getValue().gt(Celsius.of(60)));
+        ShootConnectAlert.set(!ShootingMotor.isConnected());
+        ShootStallingError.set((ShootingMotor.getStatorCurrent().getValueAsDouble()*ShootingMotor.getMotorKT().getValueAsDouble())/Shoot.WheelRadius.in(Meters) > 20);
     }
 
     public static Shooter getInstance(){

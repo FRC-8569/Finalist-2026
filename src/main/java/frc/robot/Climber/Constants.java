@@ -1,10 +1,12 @@
 package frc.robot.Climber;
 
+import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
 
 public class Constants {
     public static final int MotorID = 60;
+    public static final CANBus bus = new CANBus("Drivetrain");
     public static final double GearRatio = 60;
     public static final Slot0Configs ClimbPID = new Slot0Configs()
         .withKP(0).withKS(0).withKD(0);

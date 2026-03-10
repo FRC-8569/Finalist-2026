@@ -4,8 +4,8 @@
 
 package frc.robot;
 
-import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.MetersPerSecond;
+
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -13,27 +13,33 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
-import frc.robot.Auto.Auto;
+import frc.robot.Climber.Climber;
 import frc.robot.Drivetrain.Constants;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
+import frc.robot.Spindexer.Spindexer;
+import frc.utils.GameData;
 
 public class RobotContainer {
   public Drivetrain drivetrain = Drivetrain.getInstance();
   public Intake intake = Intake.getInstance();
   public Shooter shooter = Shooter.getInstance();
-  public CommandXboxController DrivetrainController = new CommandXboxController(0);
-  public CommandXboxController IntakeController = new CommandXboxController(1);
+  public Spindexer spindexer = Spindexer.getInstance();
+  public Climber climber = Climber.getInstance();
+  public GameData game = GameData.getInstance();
+  public CommandXboxController MainController = new CommandXboxController(0);
+  public CommandXboxController SecondController = new CommandXboxController(1);
 
   public RobotContainer() {
     drivetrain.setDefaultCommand(drivetrain.drive(
-      () -> Constants.MaxVelocity.times(DrivetrainController.getLeftY()).times(Constants.DriveVelocity.div(Constants.MaxVelocity)), 
-      () -> Constants.MaxVelocity.times(DrivetrainController.getLeftX()).times(Constants.DriveVelocity.div(Constants.MaxVelocity)), 
-      () -> Constants.MaxOmega.times(-DrivetrainController.getRightX())));
+      () -> Constants.MaxVelocity.times(MainController.getLeftY()).times(4.0/5), 
+      () -> Constants.MaxVelocity.times(MainController.getLeftX()).times(4.0/5), 
+      () -> Constants.MaxOmega.times(-1.0).times(Math.abs(MainController.getRightX()) > 0 ? MainController.getRightX() : SecondController.getRightX())));
 
-
+    // intake.setDefaultCommand(intake.setRollVelocity(MetersPerSecond.of(3)));
+    shooter.setDefaultCommand(shooter.setState(() -> new SwerveModuleState(2, shooter.getState().angle)));
+    
    configureBindings();
 
 
@@ -48,26 +54,45 @@ public class RobotContainer {
 
 
   private void configureBindings() {
-    DrivetrainController.start().onTrue(drivetrain.resetHeading());
-    DrivetrainController.back().onTrue(drivetrain.fieldReset());
-    DrivetrainController.povDown().onTrue(drivetrain.updateVisionPose());
-    
-    IntakeController.rightBumper().onTrue(intake.moveIntake(false));
-    IntakeController.leftBumper().onTrue(intake.moveIntake(true));
-    IntakeController.leftTrigger().whileTrue(intake.intake(true));
-    IntakeController.rightTrigger().whileTrue(intake.intake(false));
-    IntakeController.b().onTrue(shooter.setShooterState(MetersPerSecond.of(2))); 
-    IntakeController.a().onTrue(shooter.stopShooter());
-    IntakeController.y().whileTrue(shooter.setState(new SwerveModuleState(10, new Rotation2d(Degrees.of(10)))));
-    IntakeController.x().onTrue(shooter.setShooterState(MetersPerSecond.zero()));
-    IntakeController.start().onTrue(intake.CalibrateIntake());
-    IntakeController.povDown().onTrue(shooter.resetPitch());
+    // MainController.b().toggleOnTrue(shooter.shoot());
+    MainController.b().toggleOnTrue(shooter.setState(new SwerveModuleState(36, Rotation2d.fromDegrees(15.5))));
+    MainController.a().toggleOnTrue(intake.intake(true)); 
+    // MainController.y().whileTrue(climber.climb(0.5));
+    // MainController.x().whileTrue(climber.climb(-0.5));
+    MainController.x().onTrue(shooter.resetPitch());
+    MainController.leftBumper().onTrue(intake.moveIntake(true));
+    MainController.rightBumper().onTrue(intake.moveIntake(false));
+    //TODO: pitch offseting TBD
+    //TODO: shoot offseting TBD
+    MainController.povUp().toggleOnTrue(drivetrain.faceLock());
+    MainController.povDown().toggleOnTrue(drivetrain.robotCentric());
+    MainController.povLeft().onTrue(drivetrain.updateVisionPose());
+    MainController.povRight().onTrue(intake.CalibrateIntake());
+    MainController.back().onTrue(drivetrain.fieldReset());
+    MainController.start().onTrue(drivetrain.resetHeading());
+    //------------------------------------------------------------------
+    SecondController.leftBumper().onTrue(intake.moveIntake(true));
+    SecondController.rightBumper().onTrue(intake.moveIntake(false));
 
-    new Trigger(() -> DrivetrainController.povUp().getAsBoolean() && IntakeController.povUp().getAsBoolean())
-      .onTrue(Commands.idle());
+    // DrivetrainController.start().onTrue(drivetrain.resetHeading());
+    // DrivetrainController.back().onTrue(drivetrain.fieldReset());
+    // DrivetrainController.povDown().onTrue(drivetrain.updateVisionPose());
+    
+    // IntakeController.rightBumper().onTrue(intake.moveIntake(false));
+    // IntakeController.leftBumper().onTrue(intake.moveIntake(true));
+    // IntakeController.start().onTrue(intake.CalibrateIntake());
+    // IntakeController.povDown().toggleOnTrue(shooter.setState(new SwerveModuleState(35, new Rotation2d(Degrees.of(15.5)))));
+    
+    // new Trigger(() -> DrivetrainController.povUp().getAsBoolean() && IntakeController.povUp().getAsBoolean())
+    //   .onTrue(drivetrain.updateVisionPose());
+
+    // new Trigger(() -> game.predictRobotState().isPresent() ? game.predictRobotState().map(state -> state.isNear(game.getRobotState())).orElse(false) : false)
+    //     .and(() -> drivetrain.inZone())
+    //     .and(() -> game.isHubActive())
+    //     .whileTrue(Commands.runEnd(() -> DrivetrainController.setRumble(RumbleType.kBothRumble, 0.8), () -> DrivetrainController.setRumble(RumbleType.kBothRumble, 0)));
   }
 
   public Command getAutonomousCommand() {
-    return Auto.getAutoCommand().beforeStarting(drivetrain.updateVisionPose());
+    return Commands.idle();//Auto.getAutoCommand().beforeStarting(drivetrain.updateVisionPose());
   }
 }

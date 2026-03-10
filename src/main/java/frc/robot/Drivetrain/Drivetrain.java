@@ -3,14 +3,12 @@ package frc.robot.Drivetrain;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Milliseconds;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
 import static edu.wpi.first.units.Units.Seconds;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
-import org.photonvision.PhotonUtils;
 
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.hardware.CANcoder;
@@ -28,7 +26,6 @@ import com.pathplanner.lib.config.RobotConfig;
 import dev.doglog.DogLog;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Distance;
@@ -44,7 +41,6 @@ import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Constants.Modules;
 import frc.robot.Vision.Vision;
-import frc.utils.FieldObjects;
 import frc.utils.GameData;
 import frc.utils.PoseUtils;
 import frc.utils.PoseUtils.FieldPlace;
@@ -58,8 +54,11 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     private SwerveRequest.ApplyRobotSpeeds AutoDrive;
     private SwerveRequest.FieldCentric ManualDrive;
     private SwerveRequest.FieldCentricFacingAngle ManualFacing;
+    private SwerveRequest.RobotCentric ManualRobotCentric;
     private double SimTime = 0;
     private boolean hasVisionUpdated = false;
+    private boolean faceLock = false;
+    private boolean isRobotCentric = false;
 
     public Vision vision;
     
@@ -83,22 +82,26 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
                 .withDesaturateWheelSpeeds(true);
 
         ManualDrive = new SwerveRequest.FieldCentric()
-                .withDriveRequestType(
-                        Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
+                .withDriveRequestType(DriveRequestType.Velocity)
                 .withSteerRequestType(SteerRequestType.Position)
                 .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
-                .withRotationalDeadband(RotationsPerSecond.of(0.1))
+                .withRotationalDeadband(Constants.MaxOmega.times(Constants.Deadband))
                 .withDesaturateWheelSpeeds(true);
 
         ManualFacing = new SwerveRequest.FieldCentricFacingAngle()
-                .withDriveRequestType(
-                        Utils.isSimulation() ? DriveRequestType.OpenLoopVoltage : DriveRequestType.Velocity)
+                .withDriveRequestType(DriveRequestType.Velocity)
                 .withSteerRequestType(SteerRequestType.Position)
                 .withDeadband(Constants.MaxVelocity.times(Constants.Deadband))
                 .withRotationalDeadband(Constants.MaxOmega.times(Constants.Deadband))
                 .withForwardPerspective(ForwardPerspectiveValue.OperatorPerspective)
                 .withHeadingPID(Constants.RotationPIDConfig[0], Constants.RotationPIDConfig[1],
                         Constants.RotationPIDConfig[2]);
+
+        ManualRobotCentric = new SwerveRequest.RobotCentric()
+            .withDriveRequestType(DriveRequestType.Velocity)
+            .withSteerRequestType(SteerRequestType.Position)
+            .withRotationalDeadband(Constants.MaxOmega.times(Constants.Deadband))
+            .withDesaturateWheelSpeeds(true);
         
         autoInit();
         if(Utils.isSimulation()) simInit();
@@ -107,12 +110,11 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
 
     public Command drive(Supplier<LinearVelocity> vx, Supplier<LinearVelocity> vy, Supplier<AngularVelocity> omega){
-        return run(() -> setControl(GameData.getInstance().CurrentLocking.map(FieldObjects::getPose).map(Pose3d::toPose2d)
-        .<SwerveRequest>map(pose -> omega.get().gt(Constants.MaxOmega.times(Constants.Deadband)) ? 
-                                                ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : 
-                                                ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(PhotonUtils.getYawToPose(getState().Pose, pose)))
-        .orElse(ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))))
-        .withName(GameData.getInstance().CurrentLocking.isPresent() ? "Driving with locking to %s".formatted(GameData.getInstance().CurrentLocking.get()) : "Driving freely");
+        return run(() -> setControl(GameData.getInstance().predictRobotState()
+            .<SwerveRequest>map(s -> (!omega.get().gt(Constants.MaxOmega.times(Constants.Deadband))) && faceLock ? 
+                        ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(s.facing()) :
+                        isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))
+            .orElse(isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))));
     }
 
     public Command drive(Pose2d pose, Side side){
@@ -147,11 +149,6 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
                 .beforeStarting(drive(new Pose2d(12,0.6,Rotation2d.k180deg), getSide()).onlyIf(() -> !inZone()));
     }
 
-    //  new Pose2d(13.2,2,Rotation2d.fromDegrees(120)),
-    //         new Pose2d(13.4,6,Rotation2d.fromDegrees(-120)),
-    //         new Pose2d(14.1,5.1,Rotation2d.fromDegrees(-150)),
-    //         new Pose2d(14.2,2.7,Rotation2d.fromDegrees(150))
-
     public Command resetHeading(){
         return Commands.runOnce(() -> resetRotation(DriverStation.getAlliance().orElseThrow() == Alliance.Red ? GlobalConstants.RedAlliance : GlobalConstants.BlueAlliance));
     }
@@ -164,8 +161,10 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
                     : new Pose2d(Meters.of(16.566802).minus(Constants.RobotSize[0].div(2)),
                             Meters.of(8.072088).minus(Constants.RobotSize[1].div(2)),
                             GlobalConstants.BlueAlliance.rotateBy(Rotation2d.k180deg)));
-        });
+        }).ignoringDisable(true);
     }
+
+    
 
     @Override
     public void periodic(){
@@ -214,6 +213,17 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         }).ignoringDisable(true);
     }
 
+    public Command faceLock(){
+        return Commands.runEnd(
+            () -> this.faceLock = true, 
+            () -> this.faceLock = false);
+    }
+    public Command robotCentric(){
+        return runEnd(
+            () -> isRobotCentric = true, 
+            () -> isRobotCentric = false);
+    }
+
     private void autoInit(){
         try{
             AutoBuilder.configure(
@@ -249,14 +259,9 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
 
     @Override
-    public void simulationPeriodic(){
-
-    }
-
-    @Override
     public void setControl(SwerveRequest req){
         super.setControl(req);
-        DogLog.log("Driver/Drivetrain/CurrentMode", req.toString().getClass().getSimpleName());
+        DogLog.log("Driver/Drivetrain/CurrentMode", req.getClass().getSimpleName());
     }
 
     public static Drivetrain getInstance(){
@@ -267,12 +272,12 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     public double getCurrent(){
         return Arrays.stream(getModules()).map(s -> s.getDriveMotor().getSupplyCurrent().getValueAsDouble()+s.getSteerMotor().getSupplyCurrent().getValueAsDouble()).mapToDouble(Double::doubleValue).sum();
     }
-
+ 
     public boolean inZone() {
-        return (DriverStation.getAlliance().orElseThrow() == Alliance.Red
-                && PoseUtils.getRobotZone().get() == FieldPlace.RedZone)
-                || DriverStation.getAlliance().orElseThrow() == Alliance.Blue
-                        && PoseUtils.getRobotZone().get() == FieldPlace.BlueZone;
+        return ((DriverStation.getAlliance().orElseThrow() == Alliance.Red
+                && PoseUtils.getRobotZone().get() == FieldPlace.RedZone))
+                || (DriverStation.getAlliance().orElseThrow() == Alliance.Blue
+                        && PoseUtils.getRobotZone().get() == FieldPlace.BlueZone);
     }
 
     public Side getSide(){

@@ -26,10 +26,10 @@ public class Constants {
 
    public class Pitch {
         public static final int MotorID = 54;
-        public static final int EncoderID = 56;
+        public static final int EncoderID = 53;
         public static final double GearRatio = 10;
         public static final Pair<Angle, Angle> PitchingAngle = Pair.of(Rotations.of(0), Rotations.of(0.044));
-        public static final Angle PitchOffset = Rotations.of(-0.151361875);
+        public static final Angle PitchOffset = Rotations.of(-0.1801290278);
         public static final Slot0Configs PitchPID = new Slot0Configs() //PositionVoltage
             .withKP(3.5).withKD(0.015)
             .withKS(0.3).withKV(0.95).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
@@ -46,11 +46,11 @@ public class Constants {
     public static final int MotorID = 55;
     public static final double GearRatio = 1;
     public static final Distance WheelRadius = Inches.of(2);
-    public static final LinearVelocity MaxVelocity = MetersPerSecond.of(RPM.of(7368).in(RadiansPerSecond)*WheelRadius.in(Meters));
+    public static final LinearVelocity MaxVelocity = MetersPerSecond.of(36);
     
     // TorqueCurrentFOC control set
     public static final Slot0Configs ShootPID = new Slot0Configs()
-        .withKP(5).withKS(2.5).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseVelocitySign);
+        .withKP(6).withKS(2.5).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseVelocitySign);
     
 
     // velocity control set

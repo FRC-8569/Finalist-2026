@@ -1,16 +1,25 @@
 package frc.utils;
 
+import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.MetersPerSecond;
 
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Rotation3d;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Drivetrain;
+import frc.utils.ShootUtils.RobotState;
 
 public class PoseUtils {
     public static Optional<FieldPlace> getRobotZone(){
@@ -28,6 +37,7 @@ public class PoseUtils {
             shouldMirror.getSecond() ? GlobalConstants.CenterLine.getSecond().plus(delta.getSecond()) : pose.getMeasureY(),
             shouldMirror.getFirst() ? pose.getRotation().unaryMinus() : pose.getRotation());
     }
+
 
     public enum Side{
         LEFT, RIGHT;
@@ -50,6 +60,26 @@ public class PoseUtils {
 
         public boolean contains(Pose2d pose){
             return pose.getMeasureX().lte(Start) && pose.getMeasureX().gt(End);
+        }
+    }
+
+    public static ShootPreset InFrontOfHub = new ShootPreset(new Pose2d(13.25,4.1, Rotation2d.k180deg), new RobotState(Rotation2d.k180deg, MetersPerSecond.of(15), Degrees.of(10)));
+
+    public record ShootPreset(Pose2d robotState, RobotState state) {
+        public Pose2d getTargetPose(){
+            return new Pose2d(robotState.getX(), robotState.getY(), state.facing());
+        }
+
+        public LinearVelocity getTargetVelocity(){
+            return state.vel();
+        }
+
+        public Angle getPitchAngle(){
+            return state.pitch();
+        }
+
+        public SwerveModuleState getState(){
+            return new SwerveModuleState(state.vel(), new Rotation2d(state.pitch()));
         }
     }
 }
