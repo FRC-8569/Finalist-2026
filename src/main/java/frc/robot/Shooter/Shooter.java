@@ -6,6 +6,7 @@ import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Newton;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 
@@ -22,6 +23,7 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.ctre.phoenix6.signals.SensorDirectionValue;
 
 import dev.doglog.DogLog;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.units.measure.Angle;
@@ -48,7 +50,7 @@ public class Shooter implements Subsystem {
     private CANcoderConfiguration PitchEncoderConfig;
     public SwerveModuleState targetState = new SwerveModuleState(0, Rotation2d.kZero);
     
-    public Alert ShootTempAlert, ShootConnectAlert, ShootStallingError;
+    public Alert ShootTempAlert, ShootStallingError;
 
     private static Shooter inst;
     private Shooter(){
@@ -62,7 +64,6 @@ public class Shooter implements Subsystem {
         SpindexPID = new DutyCycleOut(0);
 
         ShootTempAlert = new Alert("Robot", "Shooter Overheated", AlertType.kWarning);
-        ShootConnectAlert = new Alert("Robot", "Shooting Motor not connected", AlertType.kError);
         ShootStallingError = new Alert("Robot", "ShootStallingError", AlertType.kWarning);
 
         ShootConfig = new TalonFXConfiguration();
@@ -159,8 +160,14 @@ public class Shooter implements Subsystem {
         if(getCurrentCommand() != null) DogLog.log("Debug/Shooter/CurrentCommand", getCurrentCommand().getName());
 
         ShootTempAlert.set(ShootingMotor.getDeviceTemp().getValue().gt(Celsius.of(60)));
-        ShootConnectAlert.set(!ShootingMotor.isConnected());
         ShootStallingError.set((ShootingMotor.getStatorCurrent().getValueAsDouble()*ShootingMotor.getMotorKT().getValueAsDouble())/Shoot.WheelRadius.in(Meters) > 20);
+    }
+
+    public List<Pair<Integer, Boolean>> isConnected(){
+        return List.of(
+            Pair.of(PitchingMotor.getDeviceID(), PitchingMotor.isConnected()),
+            Pair.of(ShootingMotor.getDeviceID(), PitchingMotor.isConnected())
+        );
     }
 
     public static Shooter getInstance(){

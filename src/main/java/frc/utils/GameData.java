@@ -4,19 +4,19 @@ import static edu.wpi.first.units.Units.MetersPerSecond;
 
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.stream.Stream;
 
-import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.swerve.SwerveModule;
 
 import dev.doglog.DogLog;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Alert.AlertType;
@@ -32,11 +32,9 @@ public class GameData implements Subsystem{
     public Optional<FieldObjects> CurrentLocking = Optional.empty();
     private static GameData inst;
     private boolean manualCancel = false;
-    public Alert CANAlert = new Alert("Robot", "Initial Value, Waiting update", AlertType.kInfo);
-
+    
     private GameData(){
         register();
-        CANAlert.set(true);
     }
 
     public void withLocking(FieldObjects obj){
@@ -62,6 +60,10 @@ public class GameData implements Subsystem{
         return activeHub == DriverStation.getAlliance().orElseThrow();
     }
 
+    public boolean isShootable(){
+        return Drivetrain.getInstance().inZone();
+    }
+
     public Optional<RobotState> predictRobotState(FieldObjects obj){
         Pose2d obj2d = new Pose2d(obj.getPose().getX(), obj.getPose().getY(), new Rotation2d(obj.getPose().getRotation().getMeasureZ()));
         obj2d = PoseUtils.getPose(obj2d, DriverStation.getAlliance().orElseThrow(), null);
@@ -77,18 +79,11 @@ public class GameData implements Subsystem{
     public RobotState getRobotState(){
         return new RobotState(Drivetrain.getInstance().getState().Pose.getRotation(), MetersPerSecond.of(Shooter.getInstance().getState().speedMetersPerSecond), Shooter.getInstance().getState().angle.getMeasure());
     }
-
+    
     @Override
     public void periodic(){
         // if(isHubActive() && predictRobotState().isPresent() && !manualCancel && Drivetrain.getInstance().inZone()) CurrentLocking = Optional.of(FieldObjects.HUB);
         predictRobotState();
-        if(Arrays.stream(Drivetrain.getInstance().getModules()).<TalonFX>map(SwerveModule::getDriveMotor).map(TalonFX::isConnected).allMatch(s -> s == true) &&
-        Arrays.stream(Drivetrain.getInstance().getModules()).<TalonFX>map(SwerveModule::getSteerMotor).map(TalonFX::isConnected).allMatch(s -> s == true) &&
-        Arrays.stream(Drivetrain.getInstance().getModules()).<CANcoder>map(SwerveModule::getEncoder).map(CANcoder::isConnected).allMatch(s -> s == true) &&
-        Intake.getInstance().TongueMotor.isConnected() && Intake.getInstance().RollMotor.isConnected() && 
-        Shooter.getInstance().PitchingMotor.isConnected() && Shooter.getInstance().ShootingMotor.isConnected() &&
-        Spindexer.getInstance().SpindexMotor.isConnected() && Spindexer.getInstance().IndexMotor.isConnected()) CANAlert.setText("All device connected, YAY");
-        else CANAlert.setText("CANBus missing device, check it");;
     }
 
     /**

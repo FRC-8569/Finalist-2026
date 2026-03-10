@@ -5,6 +5,9 @@ import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
+
+import java.util.List;
+
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.CoastOut;
 import com.ctre.phoenix6.controls.DutyCycleOut;
@@ -18,6 +21,7 @@ import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 
 import dev.doglog.DogLog;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -25,6 +29,7 @@ import edu.wpi.first.wpilibj.Threads;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.simulation.FlywheelSim;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Constants.Roller;
@@ -122,15 +127,20 @@ public class Intake implements Subsystem{
     }
 
     public Command CalibrateIntake(){
-        return runEnd(() -> { 
+        return runEnd(() -> {
             TongueMotor.getConfigurator().apply(Tongue.TongueLimit.withReverseSoftLimitEnable(false));
-            TongueMotor.set(-0.25);
+            TongueMotor.set(-0.2);
             }, () -> {
             TongueMotor.stopMotor();
+            DebounceTimer.stop();
             TongueMotor.setPosition(0);
             TongueMotor.getConfigurator().apply(Tongue.TongueLimit.withReverseSoftLimitEnable(true));
             hasStalled = false;
-        }).until(() -> TongueMotor.getStatorCurrent().getValue().gt(Amps.of(15))).withName("Calibrating");
+
+        }).until(() -> TongueMotor.getStatorCurrent().getValue().gt(Amps.of(11.5)) && DebounceTimer.hasElapsed(0.2)).beforeStarting(Commands.runOnce(() -> {
+            DebounceTimer.reset();
+            DebounceTimer.start();
+        })).withName("Calibrating");
     }
 
     @Override
@@ -149,6 +159,14 @@ public class Intake implements Subsystem{
         DogLog.log("Debug/Intake/TongueAmps", TongueMotor.getStatorCurrent().getValue());
         DogLog.log("Debug/Intake/TongueControlMode", TongueMotor.getControlMode().getValue().toString());
         DogLog.log("Debug/Intake/RollerCurrent", RollMotor.getStatorCurrent().getValue());
+        DogLog.log("Debug/Intake/DebounceTiemr", DebounceTimer.get());
+    }
+
+    public List<Pair<Integer, Boolean>> isConnected(){
+        return List.of(
+            Pair.of(TongueMotor.getDeviceID(), TongueMotor.isConnected()),
+            Pair.of(RollMotor.getDeviceID(), RollMotor.isConnected())
+        );
     }
 
     public static Intake getInstance(){

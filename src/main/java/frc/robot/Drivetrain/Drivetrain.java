@@ -5,15 +5,19 @@ import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Milliseconds;
 import static edu.wpi.first.units.Units.Seconds;
 
+import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.swerve.SwerveDrivetrain;
+import com.ctre.phoenix6.swerve.SwerveModule;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType;
@@ -164,8 +168,6 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         }).ignoringDisable(true);
     }
 
-    
-
     @Override
     public void periodic(){
         if (DriverStation.isDisabled() || !hasDirectionUpdated) {
@@ -194,6 +196,15 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         DogLog.log("Debug/Drivetrain/TimeStamp", getState().Timestamp);
 
         DogLog.log("Debug/Drivetrain/ChassisForce", Arrays.stream(getModules()).map(m -> m.getDriveMotor().getStatorCurrent().getValueAsDouble()*m.getDriveMotor().getMotorKT().getValueAsDouble()/Constants.WheelRadius.in(Meters)/GlobalConstants.G.in(MetersPerSecondPerSecond)).mapToDouble(Double::doubleValue).sum());;
+    }
+
+    public List<Pair<Integer, Boolean>> isConnected(){
+        return Stream.of(Arrays.stream(getModules()).map(SwerveModule::getDriveMotor),
+                        Arrays.stream(getModules()).map(SwerveModule::getSteerMotor),
+                        Arrays.stream(getModules()).map(SwerveModule::getEncoder))
+                .flatMap(s -> s)
+                .map(m -> new Pair<>(m.getDeviceID(), m.isConnected()))
+                .toList();
     }
 
     public Command updateVisionPose(){

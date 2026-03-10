@@ -53,7 +53,7 @@ public class Constants {
         .withKP(80).withKD(1)
         .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
     public static final PPHolonomicDriveController AutoPID = new PPHolonomicDriveController(
-        new PIDConstants(5.5, 0, 0), 
+        new PIDConstants(3.5, 0, 0), 
         new PIDConstants(5, 0, 0));
     public static final PPHolonomicDriveController AutoHeadingPID = new PPHolonomicDriveController(
         new PIDConstants(5.5), 
@@ -73,7 +73,7 @@ public class Constants {
     public static final LinearVelocity MaxVelocity = MetersPerSecond.of(5);
     public static final LinearVelocity DriveVelocity = MetersPerSecond.of(4);
     public static final AngularVelocity MaxOmega = RotationsPerSecond.of(2);
-    public static final Dimensionless Deadband = Percent.of(10); 
+    public static final Dimensionless Deadband = Percent.of(5); 
     public static final PathConstraints AutoConstraints = new PathConstraints(MetersPerSecond.of(5), MetersPerSecondPerSecond.of(25), RotationsPerSecond.of(3), RotationsPerSecondPerSecond.of(20));
     public static final Distance[] RobotSize = {Centimeters.of(65), Centimeters.of(65).plus(Millimeters.of(82))};//x,y
 
