@@ -16,5 +16,5 @@ public class GlobalConstants {
     public static final Rotation2d RedAlliance = Rotation2d.kZero;
     public static final Pair<Distance, Distance> CenterLine = Pair.of(Meters.of(8.27052575), Centimeters.of(807.561250).div(2));
     public static final LinearAcceleration G = MetersPerSecondPerSecond.of(9.81);
-    public static final AprilTagFieldLayout Field = AprilTagFieldLayout.loadField(AprilTagFields.k2026RebuiltWelded); // TODO: CHANGE TO WELDED WHEN HAWAII REGIONAL
+    public static final AprilTagFieldLayout Field = AprilTagFieldLayout.loadField(AprilTagFields.k2026RebuiltWelded); 
 }

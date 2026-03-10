@@ -5,7 +5,6 @@ import java.util.Optional;
 import dev.doglog.DogLog;
 
 import static edu.wpi.first.units.Units.Degree;
-import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Radians;
@@ -28,7 +27,6 @@ import frc.robot.Shooter.Constants.Shoot;
 public class ShootUtils {
     public static Drivetrain drivetrain = Drivetrain.getInstance();
     public static Shooter shoooter = Shooter.getInstance();
-    private static Timer timer = new Timer();
 
     public enum ApproachStrategy {
         /**

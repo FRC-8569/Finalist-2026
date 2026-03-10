@@ -7,10 +7,8 @@ import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
-import frc.utils.GameData;
 import frc.utils.PoseUtils.ShootPreset;
 import frc.utils.PoseUtils.Side;
-import frc.utils.ShootUtils.RobotState;
 
 public class CompoundCommand {
     private static Drivetrain drivetrain = Drivetrain.getInstance();

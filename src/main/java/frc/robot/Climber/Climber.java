@@ -1,7 +1,5 @@
 package frc.robot.Climber;
 
-import static edu.wpi.first.units.Units.Meter;
-import static edu.wpi.first.units.Units.Newton;
 import static edu.wpi.first.units.Units.NewtonMeter;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
@@ -13,8 +11,6 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import dev.doglog.DogLog;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Subsystem;
-import frc.robot.Intake.Intake;
-import frc.robot.Shooter.Shooter;
 
 public class Climber implements Subsystem{
     public TalonFX ClimbMotor;

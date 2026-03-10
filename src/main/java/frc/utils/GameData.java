@@ -2,31 +2,18 @@ package frc.utils;
 
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
-import java.util.Arrays;
 import java.util.Optional;
-import java.util.stream.Stream;
-
-import com.ctre.phoenix6.hardware.CANcoder;
-import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.swerve.SwerveModule;
-
-import dev.doglog.DogLog;
-import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.Alert.AlertType;
 import frc.utils.ShootUtils.RobotState;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Drivetrain.Drivetrain;
-import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
-import frc.robot.Spindexer.Spindexer;
 
 public class GameData implements Subsystem{
     public Optional<FieldObjects> CurrentLocking = Optional.empty();
@@ -79,7 +66,7 @@ public class GameData implements Subsystem{
     public RobotState getRobotState(){
         return new RobotState(Drivetrain.getInstance().getState().Pose.getRotation(), MetersPerSecond.of(Shooter.getInstance().getState().speedMetersPerSecond), Shooter.getInstance().getState().angle.getMeasure());
     }
-    
+
     @Override
     public void periodic(){
         // if(isHubActive() && predictRobotState().isPresent() && !manualCancel && Drivetrain.getInstance().inZone()) CurrentLocking = Optional.of(FieldObjects.HUB);
