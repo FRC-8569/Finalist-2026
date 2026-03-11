@@ -13,6 +13,7 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Auto.Auto;
+import frc.robot.Auto.CompoundCommand;
 import frc.robot.Climber.Climber;
 import frc.robot.Drivetrain.Constants;
 import frc.robot.Drivetrain.Drivetrain;
@@ -20,6 +21,7 @@ import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
 import frc.robot.Spindexer.Spindexer;
 import frc.utils.GameData;
+import frc.utils.PoseUtils;
 
 public class RobotContainer {
   public Drivetrain drivetrain = Drivetrain.getInstance();
@@ -56,7 +58,7 @@ public class RobotContainer {
 
   private void configureBindings() {
     // MainController.b().toggleOnTrue(shooter.shoot());
-    MainController.b().toggleOnTrue(shooter.setState(new SwerveModuleState(10, Rotation2d.fromDegrees(10))));
+    MainController.b().onTrue(CompoundCommand.shootFuel(PoseUtils.InFrontOfHub));
     MainController.a().toggleOnTrue(intake.intake(true)); 
     // MainController.y().whileTrue(climber.climb(0.5));
     // MainController.x().whileTrue(climber.climb(-0.5));
