@@ -3,6 +3,7 @@ package frc.robot.Shooter;
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Inches;
 import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.Millimeters;
 import static edu.wpi.first.units.Units.Rotations;
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
@@ -19,14 +20,15 @@ import edu.wpi.first.units.measure.LinearVelocity;
 
 public class Constants {
     public static final CANBus bus = new CANBus("rio");
-    public static final Transform3d ShooterPlace = new Transform3d(89.20000, 74.80000, 402.60000, new Rotation3d(Degrees.of(15), Degrees.of(0),Degrees.of(0)));
+    public static final Transform3d ShooterPlace = new Transform3d(Millimeters.of(89.20000), Millimeters.of(74.80000), Millimeters.of(402.60000), new Rotation3d(Degrees.of(15), Degrees.of(0),Degrees.of(0)));
 
    public class Pitch {
         public static final int MotorID = 54;
         public static final int EncoderID = 53;
         public static final double GearRatio = 10;
-        public static final Pair<Angle, Angle> PitchingAngle = Pair.of(Rotations.of(0), Rotations.of(0.044));
-        public static final Angle PitchOffset = Rotations.of(-0.1801290278);
+        public static final Pair<Angle, Angle> PitchingAngle = Pair.of(Rotations.of(0).plus(Degrees.of(25.672407)), Degrees.of(32.367019).plus(Degrees.of(25.672407)));
+        public static final Pair<Angle, Angle> PitchConstraints = Pair.of(Degrees.of(90).minus(PitchingAngle.getFirst()), Degrees.of(90).minus(PitchingAngle.getSecond()));
+        public static final Angle PitchOffset = Rotations.of(0);
         public static final Slot0Configs PitchPID = new Slot0Configs() //PositionVoltage
             .withKP(3.5).withKD(0.015)
             .withKS(0.3).withKV(0.95).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);

@@ -9,7 +9,7 @@ import edu.wpi.first.wpilibj2.command.WaitCommand;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
-import frc.utils.PoseUtils.Side;
+import frc.utils.Tools.FieldSide;
 
 public class Auto {
     public static Drivetrain drivetrain = Drivetrain.getInstance();
@@ -18,11 +18,11 @@ public class Auto {
     public static Timer timer = new Timer();
 
     public static Command getAutoCommand(){
-        Side side = drivetrain.getSide();
+        FieldSide side = drivetrain.getSide();
         return new SequentialCommandGroup(
             drivetrain.drive(new Pose2d(13.1,4,Rotation2d.kZero), side),
             new WaitCommand(3),
-            drivetrain.drive(new Pose2d(16,7.4,Rotation2d.kCCW_90deg), Side.LEFT)
+            drivetrain.drive(new Pose2d(16,7.4,Rotation2d.kCCW_90deg), FieldSide.LEFT)
             // drivetrain.drive(new Pose2d(9,1.2,Rotation2d.kCCW_90deg), side),
             // drivetrain.drive(new Pose2d(9,3.6, Rotation2d.kCCW_90deg), side),
             // drivetrain.driveToShootPose(),

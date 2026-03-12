@@ -8,20 +8,16 @@ import static edu.wpi.first.units.Units.MetersPerSecond;
 
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Auto.Auto;
-import frc.robot.Auto.CompoundCommand;
 import frc.robot.Climber.Climber;
 import frc.robot.Drivetrain.Constants;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
 import frc.robot.Spindexer.Spindexer;
-import frc.utils.GameData;
-import frc.utils.PoseUtils;
 
 public class RobotContainer {
   public Drivetrain drivetrain = Drivetrain.getInstance();
@@ -29,7 +25,6 @@ public class RobotContainer {
   public Shooter shooter = Shooter.getInstance();
   public Spindexer spindexer = Spindexer.getInstance();
   public Climber climber = Climber.getInstance();
-  public GameData game = GameData.getInstance();
   public CommandXboxController MainController = new CommandXboxController(0);
   public CommandXboxController SecondController = new CommandXboxController(1);
 
@@ -58,7 +53,7 @@ public class RobotContainer {
 
   private void configureBindings() {
     // MainController.b().toggleOnTrue(shooter.shoot());
-    MainController.b().onTrue(CompoundCommand.shootFuel(PoseUtils.InFrontOfHub));
+    
     MainController.a().toggleOnTrue(intake.intake(true)); 
     // MainController.y().whileTrue(climber.climb(0.5));
     // MainController.x().whileTrue(climber.climb(-0.5));
@@ -73,19 +68,11 @@ public class RobotContainer {
     MainController.povRight().onTrue(intake.CalibrateIntake());
     MainController.back().onTrue(drivetrain.fieldReset());
     MainController.start().onTrue(drivetrain.resetHeading());
+    
     //------------------------------------------------------------------
     SecondController.leftBumper().onTrue(intake.moveIntake(true));
     SecondController.rightBumper().onTrue(intake.moveIntake(false));
 
-    // DrivetrainController.start().onTrue(drivetrain.resetHeading());
-    // DrivetrainController.back().onTrue(drivetrain.fieldReset());
-    // DrivetrainController.povDown().onTrue(drivetrain.updateVisionPose());
-    
-    // IntakeController.rightBumper().onTrue(intake.moveIntake(false));
-    // IntakeController.leftBumper().onTrue(intake.moveIntake(true));
-    // IntakeController.start().onTrue(intake.CalibrateIntake());
-    // IntakeController.povDown().toggleOnTrue(shooter.setState(new SwerveModuleState(35, new Rotation2d(Degrees.of(15.5)))));
-    
     // new Trigger(() -> DrivetrainController.povUp().getAsBoolean() && IntakeController.povUp().getAsBoolean())
     //   .onTrue(drivetrain.updateVisionPose());
 

@@ -1,13 +1,13 @@
 package frc.robot.Shooter;
 
 import static edu.wpi.first.units.Units.Celsius;
+import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Newton;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
@@ -35,7 +35,6 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
-import frc.utils.GameData;
 
 public class Shooter implements Subsystem {
     public TalonFX ShootingMotor, PitchingMotor;
@@ -107,7 +106,7 @@ public class Shooter implements Subsystem {
 
     public Command setState(SwerveModuleState state){
         return run(() -> {
-            PitchingMotor.setControl(PitchingPID.withPosition(state.angle.getMeasure()));
+            PitchingMotor.setControl(PitchingPID.withPosition(Degrees.of(90).minus(state.angle.getMeasure())));
             ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(state.speedMetersPerSecond/Shoot.WheelRadius.in(Meters))));
             targetState = state;
         }).withName("Shooting in %.2f m/s %.2f degree".formatted(state.speedMetersPerSecond, state.angle.getDegrees()));
@@ -117,18 +116,9 @@ public class Shooter implements Subsystem {
         return setState(state.get());
     }
 
-    public Command shoot(){
-        try{
-            return setState(GameData.getInstance().predictRobotState().<SwerveModuleState>map(s -> new SwerveModuleState(s.vel(), new Rotation2d(s.pitch()))).get());
-        }catch(NoSuchElementException e){
-            return Commands.idle();
-        }
-    }
-
     public Command setShooterState(LinearVelocity vel){
         return run(() -> ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(vel.in(MetersPerSecond)/Shoot.WheelRadius.in(Meters)))))
             .until(() -> ShootingMotor.getVelocity().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05));
-            
     }
 
     public Command pitchShooter(Angle angle){

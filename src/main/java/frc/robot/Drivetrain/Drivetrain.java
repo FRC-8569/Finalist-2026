@@ -43,10 +43,9 @@ import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Constants.Modules;
 import frc.robot.Vision.Vision;
-import frc.utils.GameData;
-import frc.utils.PoseUtils;
-import frc.utils.PoseUtils.FieldPlace;
-import frc.utils.PoseUtils.Side;
+import frc.utils.Tools;
+import frc.utils.Tools.FieldPlace;
+import frc.utils.Tools.FieldSide;
 
 public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> implements Subsystem{
     private static Drivetrain inst;
@@ -112,19 +111,20 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
 
     public Command drive(Supplier<LinearVelocity> vx, Supplier<LinearVelocity> vy, Supplier<AngularVelocity> omega){
-        return run(() -> setControl(GameData.getInstance().predictRobotState()
-            .<SwerveRequest>map(s -> (!omega.get().gt(Constants.MaxOmega.times(Constants.Deadband))) && faceLock ? 
-                        ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(s.facing()) :
-                        isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))
-            .orElse(isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))));
+        return run(() -> setControl(ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())));
+        // return run(() -> setControl(GameData.getInstance().predictRobotState()
+        //     .<SwerveRequest>map(s -> (!omega.get().gt(Constants.MaxOmega.times(Constants.Deadband))) && faceLock ? 
+        //                 ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(s.facing()) :
+        //                 isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))
+        //     .orElse(isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))));
     }
 
-    public Command drive(Pose2d pose, Side side){
+    public Command drive(Pose2d pose, FieldSide side){
         return defer(() -> {
             try {
                 RobotConfig r = RobotConfig.fromGUISettings();
                 return new PathfindingCommand(
-                        PoseUtils.getPose(pose, DriverStation.getAlliance().orElseThrow(), side),
+                        Tools.getPose(pose, side),
                         Constants.AutoConstraints,
                         () -> getState().Pose,
                         () -> getState().Speeds,
@@ -147,7 +147,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
             new Pose2d(13.4,6,Rotation2d.fromDegrees(-120)),
             new Pose2d(14.1,5.1,Rotation2d.fromDegrees(-150)),
             new Pose2d(14.2,2.7,Rotation2d.fromDegrees(150)))
-            .stream().map(p -> PoseUtils.getPose(p, DriverStation.getAlliance().orElseThrow(), null)).toList()), getSide())
+            .stream().map(p -> Tools.getPose(p, getSide())).toList()), getSide())
                 .beforeStarting(drive(new Pose2d(12,0.6,Rotation2d.k180deg), getSide()).onlyIf(() -> !inZone()));
     }
 
@@ -284,13 +284,19 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
  
     public boolean inZone() {
         return ((DriverStation.getAlliance().orElseThrow() == Alliance.Red
-                && PoseUtils.getRobotZone().get() == FieldPlace.RedZone))
+                && getPlace() == FieldPlace.RedZone))
                 || (DriverStation.getAlliance().orElseThrow() == Alliance.Blue
-                        && PoseUtils.getRobotZone().get() == FieldPlace.BlueZone);
+                        && getPlace() == FieldPlace.BlueZone);
     }
 
-    public Side getSide(){
+    public FieldPlace getPlace(){
+        if(FieldPlace.RedZone.contains(getState().Pose)) return FieldPlace.RedZone;
+        else if(FieldPlace.Neutral.contains(getState().Pose)) return FieldPlace.Neutral;
+        else return FieldPlace.BlueZone;
+    }
+
+    public FieldSide getSide(){
         Distance dy = getState().Pose.getMeasureY().minus(GlobalConstants.CenterLine.getSecond());
-        return (DriverStation.getAlliance().orElseThrow() == Alliance.Red ? dy.gt(Meters.zero()) : dy.lt(Meters.zero())) ? Side.LEFT : Side.RIGHT;
+        return (DriverStation.getAlliance().orElseThrow() == Alliance.Red ? dy.gt(Meters.zero()) : dy.lt(Meters.zero())) ? FieldSide.LEFT : FieldSide.RIGHT;
     }
 }
