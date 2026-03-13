@@ -4,17 +4,12 @@ import static edu.wpi.first.units.Units.Centimeters;
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Radians;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
-
-import java.util.List;
-import java.util.Set;
 
 import com.ctre.phoenix6.Utils;
 
 import dev.doglog.DogLog;
-import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.Nat;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.Vector;
@@ -26,13 +21,9 @@ import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.math.trajectory.TrajectoryConfig;
-import edu.wpi.first.math.trajectory.TrajectoryGenerator;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
-import edu.wpi.first.util.sendable.Sendable;
-import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Subsystem;
@@ -95,17 +86,7 @@ public class Tools {
 
             return new RobotState(facing, new SwerveModuleState(MetersPerSecond.of(v), pitch));
         }
-
-        @SuppressWarnings("unused")
-        private Angle calcAngle(LinearVelocity endVelocity){
-            return Rotation2d.fromRadians(Math.asin(g*distance/(endVelocity.in(MetersPerSecond)*endVelocity.in(MetersPerSecond)))).div(2).getMeasure();
-        }
-
-        @SuppressWarnings("unused")
-        private LinearVelocity calcVel(Angle a){
-            return MetersPerSecond.of(Math.sqrt(2*g*height)/Math.abs(new Rotation2d(a).getSin()));
-        }
-
+        
         public static RobotState create(FieldObjects obj) {
             return create(new Transform3d((new Pose3d(Drivetrain.getInstance().getState().Pose).plus(Constants.ShooterPlace)), obj.getPose()));
         }

@@ -20,9 +20,10 @@ public class Auto {
     public static Command getAutoCommand(){
         FieldSide side = drivetrain.getSide();
         return new SequentialCommandGroup(
-            drivetrain.drive(new Pose2d(13.1,4,Rotation2d.kZero), side),
-            new WaitCommand(3),
-            drivetrain.drive(new Pose2d(16,7.4,Rotation2d.kCCW_90deg), FieldSide.LEFT)
+            drivetrain.drive(new Pose2d(9,7,Rotation2d.kCCW_90deg), side).raceWith(intake.moveIntake(true)),
+            drivetrain.drive(new Pose2d(9,4.5,Rotation2d.kCCW_90deg), side).raceWith(intake.intake(true)),
+            drivetrain.drive(new Pose2d(11.25, 7.4, Rotation2d.k180deg), side),
+            CompoundCommand.shoot(new Pose2d(14,6, Rotation2d.k180deg), side)
             // drivetrain.drive(new Pose2d(9,1.2,Rotation2d.kCCW_90deg), side),
             // drivetrain.drive(new Pose2d(9,3.6, Rotation2d.kCCW_90deg), side),
             // drivetrain.driveToShootPose(),

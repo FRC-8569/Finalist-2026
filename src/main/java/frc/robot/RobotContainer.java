@@ -6,6 +6,8 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
+import com.ctre.phoenix6.Utils;
+
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
@@ -83,6 +85,6 @@ public class RobotContainer {
   }
 
   public Command getAutonomousCommand() {
-    return Auto.getAutoCommand().beforeStarting(drivetrain.updateVisionPose());
+    return Auto.getAutoCommand().beforeStarting(drivetrain.updateVisionPose()).onlyIf(() -> Utils.isSimulation());
   }
 }
