@@ -59,7 +59,6 @@ public class RobotContainer {
     MainController.a().toggleOnTrue(intake.intake(true)); 
     // MainController.y().whileTrue(climber.climb(0.5));
     // MainController.x().whileTrue(climber.climb(-0.5));
-    MainController.x().onTrue(shooter.resetPitch());
     MainController.leftBumper().onTrue(intake.moveIntake(true));
     MainController.rightBumper().onTrue(intake.moveIntake(false));
     //TODO: pitch offseting TBD

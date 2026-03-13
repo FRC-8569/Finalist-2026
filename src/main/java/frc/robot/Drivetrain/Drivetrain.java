@@ -4,6 +4,7 @@ import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Milliseconds;
+import static edu.wpi.first.units.Units.RotationsPerSecond;
 import static edu.wpi.first.units.Units.Seconds;
 
 import java.util.Arrays;
@@ -113,15 +114,23 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
 
     public Command drive(Supplier<LinearVelocity> vx, Supplier<LinearVelocity> vy, Supplier<AngularVelocity> omega){
-        return run(() -> setControl(
-            Utils.isSimulation() ? ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(RobotState.create(Tools.HUB).drivetrainFacing()):
-            (omega.get().lt(Constants.MaxOmega.times(Constants.Deadband)) && inZone() && faceLock) ?
-                ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(RobotState.create(Tools.HUB).drivetrainFacing()) :
-            ((omega.get().lt(Constants.MaxOmega.times(Constants.Deadband)) && !inZone() && faceLock) ? 
-                ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(Rotation2d.k180deg) :
-                ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())
-            )
-        ));
+        return run(() -> {
+            if ( omega.get().abs(RotationsPerSecond) < Constants.MaxOmega.times(Constants.Deadband).abs(RotationsPerSecond)  && inZone() && faceLock)
+                setControl(
+                    ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get())
+                                .withTargetDirection(RobotState.create(Tools.HUB).drivetrainFacing())
+                );
+            else if(omega.get().lt(Constants.MaxOmega.times(Constants.Deadband)) && !inZone() && faceLock)
+                setControl(
+                ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get())
+                            .withTargetDirection(Rotation2d.k180deg)
+                );
+            else setControl(
+                ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get())
+                        .withRotationalRate(omega.get())
+            );
+        });
+        
     }
 
     public Command drive(Pose2d pose, FieldSide side){
@@ -146,6 +155,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         });
     }
 
+    @Deprecated(forRemoval = true)
     public Command driveToShootPose(){
         return drive(getState().Pose.nearest(
             List.of(new Pose2d(13.2,2,Rotation2d.fromDegrees(120)),
@@ -197,7 +207,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         DogLog.log("Debug/Drivetrain/ModuleTarget", getState().ModuleTargets);
         DogLog.log("Debug/Drivetrain/LockingError", ManualFacing.TargetDirection.minus(getState().Pose.getRotation()));
         DogLog.log("Debug/Drivetrain/TimeStamp", getState().Timestamp);
-        
+        DogLog.log("Driver/Drivetrain/isFaceLock", faceLock);
         DogLog.log("Debug/Drivetrain/ChassisForce", Arrays.stream(getModules()).map(m -> m.getDriveMotor().getStatorCurrent().getValueAsDouble()*m.getDriveMotor().getMotorKT().getValueAsDouble()/Constants.WheelRadius.in(Meters)/GlobalConstants.G.in(MetersPerSecondPerSecond)).mapToDouble(Double::doubleValue).sum());;
     }
 
@@ -279,10 +289,10 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
  
     public boolean inZone() {
-        return ((DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red
-                && getPlace() == FieldPlace.RedZone))
-                || (DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Blue
-                        && getPlace() == FieldPlace.BlueZone);
+        return switch(DriverStation.getAlliance().orElse(Alliance.Blue)){
+            case Red -> FieldPlace.RedZone;
+            case Blue -> FieldPlace.BlueZone;
+        } == getPlace();
     }
 
     public FieldPlace getPlace(){

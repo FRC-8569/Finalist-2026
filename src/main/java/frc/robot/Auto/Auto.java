@@ -24,10 +24,6 @@ public class Auto {
             drivetrain.drive(new Pose2d(9,4.5,Rotation2d.kCCW_90deg), side).raceWith(intake.intake(true)),
             drivetrain.drive(new Pose2d(11.25, 7.4, Rotation2d.k180deg), side),
             CompoundCommand.shoot(new Pose2d(14,6, Rotation2d.k180deg), side)
-            // drivetrain.drive(new Pose2d(9,1.2,Rotation2d.kCCW_90deg), side),
-            // drivetrain.drive(new Pose2d(9,3.6, Rotation2d.kCCW_90deg), side),
-            // drivetrain.driveToShootPose(),
-            // drivetrain.drive(new Pose2d(16.1,7.5,Rotation2d.kCCW_90deg), Side.LEFT).onlyIf(() -> side == Side.LEFT)
         );
     }
 }
