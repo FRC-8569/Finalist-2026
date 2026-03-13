@@ -4,26 +4,53 @@ import static edu.wpi.first.units.Units.Centimeters;
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
+import static edu.wpi.first.units.Units.Radians;
+import static edu.wpi.first.units.Units.RadiansPerSecond;
+
+import java.util.List;
+import java.util.Set;
+
 import com.ctre.phoenix6.Utils;
 
 import dev.doglog.DogLog;
+import edu.wpi.first.math.Matrix;
+import edu.wpi.first.math.Nat;
 import edu.wpi.first.math.Pair;
+import edu.wpi.first.math.Vector;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.math.numbers.N3;
+import edu.wpi.first.math.trajectory.TrajectoryConfig;
+import edu.wpi.first.math.trajectory.TrajectoryGenerator;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.util.sendable.Sendable;
+import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Drivetrain;
+import frc.robot.Shooter.Constants;
+import frc.robot.Shooter.Shooter;
+import frc.robot.Shooter.Constants.Shoot;
 
 public class Tools {
+    public static RobotState getCurrentState(){
+        return new RobotState(Drivetrain.getInstance().getState().Pose.getRotation(), Shooter.getInstance().getState());
+    }
+   
+    public static RobotState getTargetState(){
+        return new RobotState(Drivetrain.getInstance().ManualFacing.TargetDirection, new SwerveModuleState(Shooter.getInstance().ShootPID.getVelocityMeasure().in(RadiansPerSecond)*Shoot.WheelRadius.in(Meters),new Rotation2d(Shooter.getInstance().PitchingPID.getPositionMeasure())));
+    }
+   
     public static record RobotState(Rotation2d drivetrainFacing, SwerveModuleState shooterState) implements Subsystem {
         private static final double g = 9.81;
         private static double distance = -1, height = -1;
@@ -36,6 +63,12 @@ public class Tools {
             return shooterState;
         }
 
+        public boolean isNear(RobotState other){
+            return drivetrainFacing.getMeasure().isNear(Drivetrain.getInstance().getState().Pose.getRotation().getMeasure(), 0.05)
+                && MetersPerSecond.of(shooterState.speedMetersPerSecond).isNear(MetersPerSecond.of(other.shooterState.speedMetersPerSecond), 0.1) &&
+                shooterState.angle.getMeasure().isNear(other.shooterState.angle.getMeasure(), 0.05);
+        }
+
         /**
          * This function creates a basic set of shooting profile, recommend to use
          * {@link #optmize()} to optmize the shooting profile
@@ -43,8 +76,9 @@ public class Tools {
          * @return
          */
         public static RobotState create(Transform3d target) {
-            Rotation2d facing = new Rotation2d(target.getMeasureX().in(Meters), target.getMeasureY().in(Meters));
-            
+            Rotation2d facing = Rotation2d.fromRadians(Math.atan2(target.getMeasureY().in(Meters), target.getMeasureX().in(Meters)));
+            facing = new Rotation2d(facing.getMeasure().plus(Degrees.of(180)));
+
             double d = Math.hypot(target.getMeasureX().in(Meters), target.getMeasureY().in(Meters));
             double h = target.getMeasureZ().plus(Meters.of(5)).in(Meters);
 
@@ -56,7 +90,7 @@ public class Tools {
 
             DogLog.log("ShootPredictor/RobotFacing", facing);
             DogLog.log("ShootPredictor/ShooterState", new SwerveModuleState(MetersPerSecond.of(v), pitch));
-            DogLog.log("ShootPredictor/Target", new Pose3d(Drivetrain.getInstance().getState().Pose).plus(target));
+            DogLog.log("ShootPredictor/Target", new Pose3d(Drivetrain.getInstance().getState().Pose).plus(Constants.ShooterPlace).plus(target));
             DogLog.log("ShootPredictor/TimeStamp", Utils.getCurrentTimeSeconds());
 
             return new RobotState(facing, new SwerveModuleState(MetersPerSecond.of(v), pitch));
@@ -73,7 +107,27 @@ public class Tools {
         }
 
         public static RobotState create(FieldObjects obj) {
-            return create(new Transform3d(new Pose3d(Drivetrain.getInstance().getState().Pose), obj.getPose()));
+            return create(new Transform3d((new Pose3d(Drivetrain.getInstance().getState().Pose).plus(Constants.ShooterPlace)), obj.getPose()));
+        }
+
+        public RobotState optmize(){
+            ChassisSpeeds chsSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(Drivetrain.getInstance().getState().Speeds, Drivetrain.getInstance().getState().Pose.getRotation());
+            Vector<N3> vc = new Vector<N3>(Nat.N3());
+            Vector<N3> u = new Vector<N3>(Nat.N3());
+            vc.set(0, 0, chsSpeeds.vxMetersPerSecond);
+            vc.set(1, 0, chsSpeeds.vyMetersPerSecond);
+            vc.set(2, 0, 0);
+
+            u.set(0, 0, drivetrainFacing.getCos()*shooterState.angle.getCos());
+            u.set(1, 0, drivetrainFacing.getSin()*shooterState.angle.getSin());
+            u.set(2, 0, shooterState.angle.getSin());
+
+            Vector<N3> velCorr = u.times(shooterState.speedMetersPerSecond);
+            Angle angleCorr = Radians.of(Math.atan2(velCorr.get(1), velCorr.get(0)));
+
+            DogLog.log("ShootPredictor/OptmizedState", new RobotState(new Rotation2d(angleCorr), new SwerveModuleState(velCorr.norm(), shooterState.angle)));
+
+            return new RobotState(new Rotation2d(angleCorr), new SwerveModuleState(velCorr.norm(), shooterState.angle));
         }
     }
 
@@ -126,6 +180,18 @@ public class Tools {
         public Pose3d getPose(){
             return Tools.getPose(pose, null);
         }
+    }
+
+    public static boolean isShootable(){
+        return isHubActive() && Drivetrain.getInstance().inZone();
+    }
+
+    public static boolean isHubActive(){
+        return switch(DriverStation.getGameSpecificMessage()){
+            case "R" -> Alliance.Red;
+            case "B" -> Alliance.Blue;
+            default -> Alliance.Blue;
+        } == DriverStation.getAlliance().orElse(Alliance.Blue);
     }
 
     public enum FieldPlace{

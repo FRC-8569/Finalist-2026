@@ -35,6 +35,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
+import frc.utils.Tools.RobotState;
 
 public class Shooter implements Subsystem {
     public TalonFX ShootingMotor, PitchingMotor;
@@ -110,6 +111,10 @@ public class Shooter implements Subsystem {
             ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(state.speedMetersPerSecond/Shoot.WheelRadius.in(Meters))));
             targetState = state;
         }).withName("Shooting in %.2f m/s %.2f degree".formatted(state.speedMetersPerSecond, state.angle.getDegrees()));
+    }
+
+    public Command setState(RobotState state){
+        return setState(state.getShootingState());
     }
 
     public Command setState(Supplier<SwerveModuleState> state){

@@ -33,6 +33,7 @@ public class Robot extends TimedRobot {
     DogLog.log("Utils/fmsmessage", DriverStation.getGameSpecificMessage());
     DogLog.log("Utils/MatchTime", DriverStation.getMatchTime());
     RobotState.create(Tools.HUB);
+    DogLog.log("Utils/isShootable", Tools.isShootable());
   }
 
   @Override

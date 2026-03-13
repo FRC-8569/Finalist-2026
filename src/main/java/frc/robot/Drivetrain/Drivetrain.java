@@ -1,6 +1,7 @@
 package frc.robot.Drivetrain;
 
 import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Milliseconds;
 import static edu.wpi.first.units.Units.Seconds;
@@ -46,15 +47,16 @@ import frc.robot.Vision.Vision;
 import frc.utils.Tools;
 import frc.utils.Tools.FieldPlace;
 import frc.utils.Tools.FieldSide;
+import frc.utils.Tools.RobotState;
 
 public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> implements Subsystem{
     private static Drivetrain inst;
     private Time SimLoopTime = Milliseconds.of(1);
     private boolean hasDirectionUpdated = false;
     private Notifier SimNotifier;
-    private SwerveRequest.ApplyRobotSpeeds AutoDrive;
-    private SwerveRequest.FieldCentric ManualDrive;
-    private SwerveRequest.FieldCentricFacingAngle ManualFacing;
+    public SwerveRequest.ApplyRobotSpeeds AutoDrive;
+    public SwerveRequest.FieldCentric ManualDrive;
+    public SwerveRequest.FieldCentricFacingAngle ManualFacing;
     private SwerveRequest.RobotCentric ManualRobotCentric;
     private double SimTime = 0;
     private boolean hasVisionUpdated = false;
@@ -111,12 +113,15 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
 
     public Command drive(Supplier<LinearVelocity> vx, Supplier<LinearVelocity> vy, Supplier<AngularVelocity> omega){
-        return run(() -> setControl(ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())));
-        // return run(() -> setControl(GameData.getInstance().predictRobotState()
-        //     .<SwerveRequest>map(s -> (!omega.get().gt(Constants.MaxOmega.times(Constants.Deadband))) && faceLock ? 
-        //                 ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(s.facing()) :
-        //                 isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))
-        //     .orElse(isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()) : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get()))));
+        return run(() -> setControl(
+            Utils.isSimulation() ? ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(RobotState.create(Tools.HUB).drivetrainFacing()):
+            (omega.get().lt(Constants.MaxOmega.times(Constants.Deadband)) && inZone() && faceLock) ?
+                ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(RobotState.create(Tools.HUB).drivetrainFacing()) :
+            ((omega.get().lt(Constants.MaxOmega.times(Constants.Deadband)) && !inZone() && faceLock) ? 
+                ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get()).withTargetDirection(Rotation2d.k180deg) :
+                ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())
+            )
+        ));
     }
 
     public Command drive(Pose2d pose, FieldSide side){
@@ -192,17 +197,8 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         DogLog.log("Debug/Drivetrain/ModuleTarget", getState().ModuleTargets);
         DogLog.log("Debug/Drivetrain/LockingError", ManualFacing.TargetDirection.minus(getState().Pose.getRotation()));
         DogLog.log("Debug/Drivetrain/TimeStamp", getState().Timestamp);
-
+        
         DogLog.log("Debug/Drivetrain/ChassisForce", Arrays.stream(getModules()).map(m -> m.getDriveMotor().getStatorCurrent().getValueAsDouble()*m.getDriveMotor().getMotorKT().getValueAsDouble()/Constants.WheelRadius.in(Meters)/GlobalConstants.G.in(MetersPerSecondPerSecond)).mapToDouble(Double::doubleValue).sum());;
-    }
-
-    public List<Pair<Integer, Boolean>> isConnected(){
-        return Stream.of(Arrays.stream(getModules()).map(SwerveModule::getDriveMotor),
-                        Arrays.stream(getModules()).map(SwerveModule::getSteerMotor),
-                        Arrays.stream(getModules()).map(SwerveModule::getEncoder))
-                .flatMap(s -> s)
-                .map(m -> new Pair<>(m.getDeviceID(), m.isConnected()))
-                .toList();
     }
 
     public Command updateVisionPose(){
@@ -283,9 +279,9 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
  
     public boolean inZone() {
-        return ((DriverStation.getAlliance().orElseThrow() == Alliance.Red
+        return ((DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red
                 && getPlace() == FieldPlace.RedZone))
-                || (DriverStation.getAlliance().orElseThrow() == Alliance.Blue
+                || (DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Blue
                         && getPlace() == FieldPlace.BlueZone);
     }
 

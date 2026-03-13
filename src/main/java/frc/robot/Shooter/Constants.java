@@ -20,7 +20,7 @@ import edu.wpi.first.units.measure.LinearVelocity;
 
 public class Constants {
     public static final CANBus bus = new CANBus("rio");
-    public static final Transform3d ShooterPlace = new Transform3d(Millimeters.of(89.20000), Millimeters.of(74.80000), Millimeters.of(402.60000), new Rotation3d(Degrees.of(15), Degrees.of(0),Degrees.of(0)));
+    public static final Transform3d ShooterPlace = new Transform3d(Millimeters.of(89.20000), Millimeters.of(74.80000), Millimeters.of(402.60000), new Rotation3d(Degrees.of(0), Degrees.of(0),Degrees.of(0)));
 
    public class Pitch {
         public static final int MotorID = 54;
