@@ -73,6 +73,7 @@ public class Shooter implements Subsystem {
             .withNeutralMode(NeutralModeValue.Brake)
             .withInverted(InvertedValue.Clockwise_Positive);
         PitchConfig.Feedback
+            .withFusedCANcoder(PitchEncoder)
             .withSensorToMechanismRatio(10);
         PitchConfig.withSlot0(Pitch.PitchPID);
         PitchConfig.withMotionMagic(Pitch.PitchMagic);
@@ -107,7 +108,7 @@ public class Shooter implements Subsystem {
 
     public Command setState(SwerveModuleState state){
         return run(() -> {
-            PitchingMotor.setControl(PitchingPID.withPosition(Degrees.of(90).minus(state.angle.getMeasure())));
+            // PitchingMotor.setControl(PitchingPID.withPosition(Degrees.of(90).minus(state.angle.getMeasure())));
             ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(state.speedMetersPerSecond/Shoot.WheelRadius.in(Meters))));
             targetState = state;
         }).withName("Shooting in %.2f m/s %.2f degree".formatted(state.speedMetersPerSecond, state.angle.getDegrees()));
@@ -126,12 +127,26 @@ public class Shooter implements Subsystem {
             .until(() -> ShootingMotor.getVelocity().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05));
     }
 
+    // public Command pitchShooter(Angle angle){
+    //     if(angle.lt(Pitch.PitchingAngle.getFirst()) || angle.gt(Pitch.PitchingAngle.getSecond())) return idle();
+    //     return run(() -> {
+    //         PitchingMotor.setControl(PitchingPID.withPosition(angle));
+    //     })
+    //     .handleInterrupt(() -> PitchingMotor.setControl(new NeutralOut()));
+    // }
+
+    /**
+     * This function can pitch shooter in a easy way
+     * @deprecated please use a more reliable way to pitch shooter like {@link #setState(SwerveModuleState)}
+     * @param angle
+     * @return
+     */
+    @Deprecated()
     public Command pitchShooter(Angle angle){
-        if(angle.lt(Pitch.PitchingAngle.getFirst()) || angle.gt(Pitch.PitchingAngle.getSecond())) return idle();
-        return run(() -> {
-            PitchingMotor.setControl(PitchingPID.withPosition(angle));
-        })
-        .handleInterrupt(() -> PitchingMotor.setControl(new NeutralOut()));
+        return runEnd(
+            () -> PitchingMotor.set(angle.gt(getState().angle.getMeasure()) ? 0.1 : -0.1), 
+            () -> PitchingMotor.stopMotor())
+        .until(() -> getState().angle.getMeasure().isNear(angle, 0.05));
     }
 
     public Command stopShooter(){

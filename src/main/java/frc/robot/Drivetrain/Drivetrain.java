@@ -70,7 +70,6 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         
         super(TalonFX::new,TalonFX::new,CANcoder::new,Constants.constants,
        
-            
              new SwerveModuleConstants<?, ?, ?>[] {
                 Modules.FrontLeft.constant,
                 Modules.FrontRight.constant,

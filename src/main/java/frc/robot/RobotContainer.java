@@ -4,6 +4,7 @@
 
 package frc.robot;
 
+import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
 import com.ctre.phoenix6.Utils;
@@ -12,6 +13,7 @@ import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Auto.Auto;
 import frc.robot.Climber.Climber;
@@ -59,6 +61,12 @@ public class RobotContainer {
     MainController.a().toggleOnTrue(intake.intake(true)); 
     // MainController.y().whileTrue(climber.climb(0.5));
     // MainController.x().whileTrue(climber.climb(-0.5));
+    MainController.x().toggleOnTrue(
+      new SequentialCommandGroup(
+        shooter.pitchShooter(Degrees.of(38)).alongWith(intake.moveIntake(true)),
+        shooter.setShooterState(MetersPerSecond.of(36)).alongWith(spindexer.feed()).alongWith(intake.intake(true))
+      )
+    );
     MainController.leftBumper().onTrue(intake.moveIntake(true));
     MainController.rightBumper().onTrue(intake.moveIntake(false));
     //TODO: pitch offseting TBD
