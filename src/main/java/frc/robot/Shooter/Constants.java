@@ -24,18 +24,19 @@ public class Constants {
     public static final Transform3d ShooterPlace = new Transform3d(Millimeters.of(89.20000), Millimeters.of(74.80000), Millimeters.of(402.60000), new Rotation3d(Degrees.of(0), Degrees.of(0),Degrees.of(0)));
 
    public class Pitch {
+
         public static final int MotorID = 54;
         public static final int EncoderID = 53;
         public static final double GearRatio = 20;
-        public static final Pair<Angle, Angle> PitchingAngle = Pair.of(Degrees.of(26), Degrees.of(39));
+        public static final Pair<Angle, Angle> PitchingAngle = Pair.of(Degrees.of(26), Degrees.of(38));
         public static final Pair<Angle, Angle> PitchConstraints = Pair.of(Degrees.of(90).minus(PitchingAngle.getFirst()), Degrees.of(90).minus(PitchingAngle.getSecond()));
-        public static final Angle PitchOffset = Degrees.of(256.72407).minus(Rotations.of(0.493408203125)).minus(Degrees.of(27.861328-25.672407).times(10));//-0.4897227583
+        public static final Angle PitchOffset = Rotations.of(0);// Degrees.of(256.72407)
         public static final Slot0Configs PitchPID = new Slot0Configs() //PositionVoltage
-            .withKP(3.5).withKD(0.015)
-            .withKS(0.3).withKV(0.95).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
+            .withKP(3.55).withKD(0)
+            .withKS(0.44).withKV(0).withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
         public static final MotionMagicConfigs PitchMagic = new MotionMagicConfigs()
-            .withMotionMagicCruiseVelocity(0.5)
-            .withMotionMagicAcceleration(1.5);
+            .withMotionMagicCruiseVelocity(0.06)
+            .withMotionMagicAcceleration(0.75);
         public static final SoftwareLimitSwitchConfigs PitchLimit = new SoftwareLimitSwitchConfigs()
             .withForwardSoftLimitEnable(true).withReverseSoftLimitEnable(true)
             .withReverseSoftLimitThreshold(PitchingAngle.getFirst()).withForwardSoftLimitThreshold(PitchingAngle.getSecond());

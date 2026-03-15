@@ -75,7 +75,7 @@ public class Constants {
     public static final AngularVelocity MaxOmega = RotationsPerSecond.of(2);
     public static final Dimensionless Deadband = Percent.of(5); 
     public static final PathConstraints AutoConstraints = new PathConstraints(MetersPerSecond.of(5), MetersPerSecondPerSecond.of(25), RotationsPerSecond.of(3), RotationsPerSecondPerSecond.of(20));
-    public static final Distance[] RobotSize = {Centimeters.of(65), Centimeters.of(65).plus(Millimeters.of(82))};//x,y
+    public static final Distance[] RobotSize = {Centimeters.of(83), Centimeters.of(81.2)};//x,y
 
     public static final TalonFXConfiguration DriveConfig = new TalonFXConfiguration();
     public static final TalonFXConfiguration SteerConfig = new TalonFXConfiguration()

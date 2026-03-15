@@ -3,14 +3,18 @@ package frc.robot.Intake;
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Centimeters;
 import static edu.wpi.first.units.Units.Inches;
+import static edu.wpi.first.units.Units.MetersPerSecond;
+
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Current;
 import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
 
 public class Constants {
     public static final CANBus bus = new CANBus("Drivetrain");
@@ -21,8 +25,8 @@ public class Constants {
             .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
         
         public static final MotionMagicConfigs TongueMagic = new MotionMagicConfigs()
-            .withMotionMagicExpo_kV(0.005)
-            .withMotionMagicExpo_kA(0.25);
+            .withMotionMagicExpo_kV(0.001)
+            .withMotionMagicExpo_kA(0.15);
 
         public static final SoftwareLimitSwitchConfigs TongueLimit = new SoftwareLimitSwitchConfigs()
             .withForwardSoftLimitThreshold(1.45)
@@ -44,7 +48,7 @@ public class Constants {
             .withMotionMagicAcceleration(100);
         public static final double GearRatio = 32.0/15;
         public static final Distance WheelRadius = Inches.of(2.25).div(2);
-        public static final double[] SpeedRange = {5,10.5};
+        public static final Pair<LinearVelocity, LinearVelocity> SpeedRange = Pair.of(MetersPerSecond.of(5), MetersPerSecond.of(10.5));
     }
 
 }

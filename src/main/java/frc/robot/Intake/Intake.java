@@ -110,7 +110,7 @@ public class Intake implements Subsystem{
     }
 
     public Command setRollVelocity(LinearVelocity velocity){
-        double v = Math.max(Roller.SpeedRange[0], Math.min(Roller.SpeedRange[1], velocity.in(MetersPerSecond)));
+        double v = Math.max(Roller.SpeedRange.getFirst().in(MetersPerSecond), Math.min(Roller.SpeedRange.getSecond().in(MetersPerSecond), velocity.in(MetersPerSecond)));
         return run(() -> {
             RollMotor.setControl(RollingPID.withVelocity(RadiansPerSecond.of(v/Roller.WheelRadius.in(Meters))));
             if(RollMotor.getStatorCurrent().getValue().gt(Amps.of(80))){

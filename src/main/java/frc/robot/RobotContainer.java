@@ -11,6 +11,8 @@ import com.ctre.phoenix6.Utils;
 
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
@@ -22,6 +24,7 @@ import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
 import frc.robot.Spindexer.Spindexer;
+import frc.utils.Tools;
 
 public class RobotContainer {
   public Drivetrain drivetrain = Drivetrain.getInstance();
@@ -39,7 +42,6 @@ public class RobotContainer {
       () -> Constants.MaxOmega
       .times(-1.0).times(Math.abs(MainController.getRightX()) > 0 ? MainController.getRightX() : SecondController.getRightX())));
 
-    intake.setDefaultCommand(intake.setRollVelocity(MetersPerSecond.of(0.5)));
     shooter.setDefaultCommand(shooter.setState(() -> new SwerveModuleState(2, shooter.getState().angle)));
     
    configureBindings();
@@ -59,20 +61,21 @@ public class RobotContainer {
     // MainController.b().toggleOnTrue(shooter.shoot());
     
     MainController.a().toggleOnTrue(intake.intake(true)); 
-    // MainController.y().whileTrue(climber.climb(0.5));
-    // MainController.x().whileTrue(climber.climb(-0.5));
-    MainController.x().toggleOnTrue(
-      new SequentialCommandGroup(
-        shooter.pitchShooter(Degrees.of(38)).alongWith(intake.moveIntake(true)),
-        shooter.setShooterState(MetersPerSecond.of(36)).alongWith(spindexer.feed()).alongWith(intake.intake(true))
-      )
-    );
+    MainController.b().toggleOnTrue(drivetrain.drive(Tools.RightHub.getPose(), null).andThen(shooter.setState(Tools.RightHub.state())));
+    MainController.x().whileTrue(climber.climb(-0.5));
+    MainController.y().whileTrue(climber.climb(0.5));
+
     MainController.leftBumper().onTrue(intake.moveIntake(true));
     MainController.rightBumper().onTrue(intake.moveIntake(false));
     //TODO: pitch offseting TBD
     //TODO: shoot offseting TBD
-    MainController.povUp().toggleOnTrue(drivetrain.faceLock());
-    MainController.povDown().toggleOnTrue(drivetrain.robotCentric());
+
+    MainController.leftStick(
+
+    ).toggleOnTrue(drivetrain.faceLock());
+
+    MainController.povUp().onTrue(shooter.seedShooter());
+    // MainController.povDown().toggleOnTrue(drivetrain.robotCentric());
     MainController.povLeft().onTrue(drivetrain.updateVisionPose());
     MainController.povRight().onTrue(intake.CalibrateIntake());
     MainController.back().onTrue(drivetrain.fieldReset());

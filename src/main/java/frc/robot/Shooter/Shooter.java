@@ -6,6 +6,7 @@ import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Newton;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
+import static edu.wpi.first.units.Units.Rotations;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -13,9 +14,11 @@ import java.util.function.Supplier;
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.MotionMagicExpoVoltage;
 import com.ctre.phoenix6.controls.MotionMagicVelocityTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
+import com.ctre.phoenix6.controls.PositionVoltage;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
@@ -29,19 +32,21 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
+import frc.utils.Tools;
 import frc.utils.Tools.RobotState;
 
 public class Shooter implements Subsystem {
     public TalonFX ShootingMotor, PitchingMotor;
     public CANcoder PitchEncoder;
     
-    public MotionMagicVoltage PitchingPID;
+    public PositionVoltage PitchingPID;
     public MotionMagicVelocityTorqueCurrentFOC ShootPID;
     public DutyCycleOut IndexPID, SpindexPID;
 
@@ -57,7 +62,7 @@ public class Shooter implements Subsystem {
         ShootingMotor = new TalonFX(Shoot.MotorID, Constants.bus);
         PitchEncoder = new CANcoder(Pitch.EncoderID, Constants.bus);
     
-        PitchingPID = new MotionMagicVoltage(0);
+        PitchingPID = new PositionVoltage(0);
         ShootPID = new MotionMagicVelocityTorqueCurrentFOC(0);
         IndexPID = new DutyCycleOut(0);
         SpindexPID = new DutyCycleOut(0);
@@ -108,10 +113,14 @@ public class Shooter implements Subsystem {
 
     public Command setState(SwerveModuleState state){
         return run(() -> {
-            // PitchingMotor.setControl(PitchingPID.withPosition(Degrees.of(90).minus(state.angle.getMeasure())));
+            PitchingMotor.setControl(PitchingPID.withPosition(Degrees.of(90).minus(state.angle.getMeasure())));
             ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(state.speedMetersPerSecond/Shoot.WheelRadius.in(Meters))));
             targetState = state;
         }).withName("Shooting in %.2f m/s %.2f degree".formatted(state.speedMetersPerSecond, state.angle.getDegrees()));
+    }
+
+    public Command shoot(){
+        return setState(Tools.getPredictState());
     }
 
     public Command setState(RobotState state){
@@ -124,29 +133,12 @@ public class Shooter implements Subsystem {
 
     public Command setShooterState(LinearVelocity vel){
         return run(() -> ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(vel.in(MetersPerSecond)/Shoot.WheelRadius.in(Meters)))))
-            .until(() -> ShootingMotor.getVelocity().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05));
+            .until(() -> ShootingMotor.getVelocity().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05))
+            .handleInterrupt(() -> ShootingMotor.stopMotor());
     }
 
-    // public Command pitchShooter(Angle angle){
-    //     if(angle.lt(Pitch.PitchingAngle.getFirst()) || angle.gt(Pitch.PitchingAngle.getSecond())) return idle();
-    //     return run(() -> {
-    //         PitchingMotor.setControl(PitchingPID.withPosition(angle));
-    //     })
-    //     .handleInterrupt(() -> PitchingMotor.setControl(new NeutralOut()));
-    // }
-
-    /**
-     * This function can pitch shooter in a easy way
-     * @deprecated please use a more reliable way to pitch shooter like {@link #setState(SwerveModuleState)}
-     * @param angle
-     * @return
-     */
-    @Deprecated()
-    public Command pitchShooter(Angle angle){
-        return runEnd(
-            () -> PitchingMotor.set(angle.gt(getState().angle.getMeasure()) ? 0.1 : -0.1), 
-            () -> PitchingMotor.stopMotor())
-        .until(() -> getState().angle.getMeasure().isNear(angle, 0.05));
+    public Command seedShooter(){
+        return runOnce(() -> PitchEncoder.setPosition(Degrees.of(256))).onlyIf(() -> DriverStation.isDisabled()).ignoringDisable(true);
     }
 
     public Command stopShooter(){

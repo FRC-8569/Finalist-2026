@@ -117,7 +117,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
             if ( omega.get().abs(RotationsPerSecond) < Constants.MaxOmega.times(Constants.Deadband).abs(RotationsPerSecond)  && inZone() && faceLock)
                 setControl(
                     ManualFacing.withVelocityX(vx.get()).withVelocityY(vy.get())
-                                .withTargetDirection(RobotState.create(Tools.HUB).drivetrainFacing())
+                                .withTargetDirection(Tools.getPredictState().drivetrainFacing())
                 );
             else if(omega.get().lt(Constants.MaxOmega.times(Constants.Deadband)) && !inZone() && faceLock)
                 setControl(
@@ -230,7 +230,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     public Command faceLock(){
         return Commands.runEnd(
             () -> this.faceLock = true, 
-            () -> this.faceLock = false);
+            () -> this.faceLock = false).onlyIf(() -> DriverStation.isEnabled());
     }
     public Command robotCentric(){
         return runEnd(

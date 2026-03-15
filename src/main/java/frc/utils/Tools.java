@@ -17,6 +17,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
+import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
@@ -31,7 +32,9 @@ import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Shooter.Constants;
 import frc.robot.Shooter.Shooter;
+import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
+import frc.utils.FuelSim.Hub;
 
 public class Tools {
     public static RobotState getCurrentState(){
@@ -42,6 +45,10 @@ public class Tools {
         return new RobotState(Drivetrain.getInstance().ManualFacing.TargetDirection, new SwerveModuleState(Shooter.getInstance().ShootPID.getVelocityMeasure().in(RadiansPerSecond)*Shoot.WheelRadius.in(Meters),new Rotation2d(Shooter.getInstance().PitchingPID.getPositionMeasure())));
     }
    
+    public static RobotState getPredictState(){
+        return RobotState.create(Tools.HUB);
+    }
+
     public static record RobotState(Rotation2d drivetrainFacing, SwerveModuleState shooterState) implements Subsystem {
         private static final double g = 9.81;
         private static double distance = -1, height = -1;
@@ -60,6 +67,10 @@ public class Tools {
                 shooterState.angle.getMeasure().isNear(other.shooterState.angle.getMeasure(), 0.05);
         }
 
+        private LinearVelocity calcVelocity(Angle angle){
+            return MetersPerSecond.of(Math.sqrt(2*g*height)/Math.abs(new Rotation2d(angle).getSin()));
+        }
+
         /**
          * This function creates a basic set of shooting profile, recommend to use
          * {@link #optmize()} to optmize the shooting profile
@@ -68,10 +79,10 @@ public class Tools {
          */
         public static RobotState create(Transform3d target) {
             Rotation2d facing = Rotation2d.fromRadians(Math.atan2(target.getMeasureY().in(Meters), target.getMeasureX().in(Meters)));
-            facing = new Rotation2d(facing.getMeasure().plus(Degrees.of(180)));
+            facing = new Rotation2d(facing.getMeasure());
 
             double d = Math.hypot(target.getMeasureX().in(Meters), target.getMeasureY().in(Meters));
-            double h = target.getMeasureZ().plus(Meters.of(5)).in(Meters);
+            double h = target.getMeasureZ().plus(Meters.of(2)).in(Meters);
 
             Rotation2d pitch = Rotation2d.fromRadians(Math.atan2(h, d));
             double v = Math.sqrt(2*g*height)/Math.abs(pitch.getSin());
@@ -84,7 +95,15 @@ public class Tools {
             DogLog.log("ShootPredictor/Target", new Pose3d(Drivetrain.getInstance().getState().Pose).plus(Constants.ShooterPlace).plus(target));
             DogLog.log("ShootPredictor/TimeStamp", Utils.getCurrentTimeSeconds());
 
-            return new RobotState(facing, new SwerveModuleState(MetersPerSecond.of(v), pitch));
+            return new RobotState(facing.plus(new Rotation2d(Degrees.of(225))), new SwerveModuleState(MetersPerSecond.of(v), pitch));
+        }
+
+        public static Rotation2d getDrivetrainFacing(Transform3d target){
+            return Rotation2d.fromRadians(Math.atan2(target.getY(), target.getX())).plus(Rotation2d.fromDegrees(25));
+        }
+
+        public static Rotation2d getDrivetrainFacing(FieldObjects obj){
+            return getDrivetrainFacing(new Transform3d(new Pose3d(Drivetrain.getInstance().getState().Pose), obj.getPose()));
         }
         
         public static RobotState create(FieldObjects obj) {
@@ -92,33 +111,19 @@ public class Tools {
         }
 
         public RobotState optmize(){
-            ChassisSpeeds chsSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(Drivetrain.getInstance().getState().Speeds, Drivetrain.getInstance().getState().Pose.getRotation());
-            Vector<N3> vc = new Vector<N3>(Nat.N3());
-            Vector<N3> u = new Vector<N3>(Nat.N3());
-            vc.set(0, 0, chsSpeeds.vxMetersPerSecond);
-            vc.set(1, 0, chsSpeeds.vyMetersPerSecond);
-            vc.set(2, 0, 0);
+            //fit the constraints
+            LinearVelocity calcedVel = MetersPerSecond.zero();
+            Rotation2d calcedAngle = drivetrainFacing;
+            if(shooterState.angle.getMeasure().lt(Pitch.PitchConstraints.getFirst())){
+                calcedVel = calcVelocity(Pitch.PitchConstraints.getFirst());
+            }else if(shooterState.angle.getMeasure().gt(Pitch.PitchConstraints.getSecond())){
+                calcedVel = calcVelocity(Pitch.PitchConstraints.getSecond());
+            }
 
-            u.set(0, 0, drivetrainFacing.getCos()*shooterState.angle.getCos());
-            u.set(1, 0, drivetrainFacing.getSin()*shooterState.angle.getSin());
-            u.set(2, 0, shooterState.angle.getSin());
+            DogLog.log("ShootPredictor/OptmizedFacing", calcedAngle);
+            DogLog.log("ShootPredictor/OptmizedState", new SwerveModuleState(calcedVel, shooterState.angle));
 
-            Vector<N3> velCorr = u.times(shooterState.speedMetersPerSecond);
-            Angle angleCorr = Radians.of(Math.atan2(velCorr.get(1), velCorr.get(0)));
-
-            DogLog.log("ShootPredictor/OptmizedState", new RobotState(new Rotation2d(angleCorr), new SwerveModuleState(velCorr.norm(), shooterState.angle)));
-
-            return new RobotState(new Rotation2d(angleCorr), new SwerveModuleState(velCorr.norm(), shooterState.angle));
-        }
-    }
-
-    public static record ShootPreset(Pose2d pose, RobotState state){
-        public Pose2d getPose(){
-            return new Pose2d(pose.getX(),pose.getY(),state.drivetrainFacing);
-        }
-
-        public SwerveModuleState getShooterState(){
-            return state.shooterState;
+            return new RobotState(drivetrainFacing, new SwerveModuleState(calcedVel, shooterState.angle));
         }
     }
 
@@ -162,6 +167,20 @@ public class Tools {
             return Tools.getPose(pose, null);
         }
     }
+
+
+    public static record ShootPreset(Pose2d pose, RobotState state){
+        public Pose2d getPose(){
+            return new Pose2d(pose.getX(),pose.getY(),state.drivetrainFacing);
+        }
+
+        public SwerveModuleState getShooterState(){
+            return state.shooterState;
+        }
+    }
+
+    public static ShootPreset RightHub = new ShootPreset(new Pose2d(14.5,6.2, Rotation2d.kZero), new RobotState(RobotState.getDrivetrainFacing(Tools.HUB), new SwerveModuleState(17, Rotation2d.fromDegrees(68))));
+
 
     public static boolean isShootable(){
         return isHubActive() && Drivetrain.getInstance().inZone();

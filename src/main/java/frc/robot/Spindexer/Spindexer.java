@@ -64,7 +64,7 @@ public class Spindexer implements Subsystem{
     public Command feed(){
         return runEnd(() -> {
                 SpindexMotor.setControl(SpindexOut.withOutput(0.4));
-                IndexMotor.setControl(IndexOut.withOutput(0.4));
+                IndexMotor.setControl(IndexOut.withOutput(0.2));
             }
             , () -> {
             SpindexMotor.stopMotor();
