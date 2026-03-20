@@ -8,7 +8,6 @@ import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Millimeter;
-import static edu.wpi.first.units.Units.Millimeters;
 import static edu.wpi.first.units.Units.Percent;
 import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
@@ -74,7 +73,7 @@ public class Constants {
     public static final LinearVelocity DriveVelocity = MetersPerSecond.of(4);
     public static final AngularVelocity MaxOmega = RotationsPerSecond.of(2);
     public static final Dimensionless Deadband = Percent.of(5); 
-    public static final PathConstraints AutoConstraints = new PathConstraints(MetersPerSecond.of(5), MetersPerSecondPerSecond.of(25), RotationsPerSecond.of(3), RotationsPerSecondPerSecond.of(20));
+    public static final PathConstraints AutoConstraints = new PathConstraints(MetersPerSecond.of(5), MetersPerSecondPerSecond.of(50), RotationsPerSecond.of(5), RotationsPerSecondPerSecond.of(20));
     public static final Distance[] RobotSize = {Centimeters.of(83), Centimeters.of(81.2)};//x,y
 
     public static final TalonFXConfiguration DriveConfig = new TalonFXConfiguration();
@@ -90,7 +89,7 @@ public class Constants {
 
     public static final CANcoderConfiguration EncoderConfig = new CANcoderConfiguration();
     public static final Pigeon2Configuration GyroConfig = null;
-    public static final CANBus bus = new CANBus("Drivetrain");
+    public static final CANBus bus = new CANBus("rio");
 
     // These are only used for simulation
     private static final MomentOfInertia kSteerInertia = KilogramSquareMeters.of(0.01);
@@ -137,31 +136,6 @@ public class Constants {
         public static final boolean SteerEncoderInverted = false;
 
         public class FrontLeft {
-            public static final int DriveID = 11;
-            public static final int SteerID = 12;
-            public static final int EncoderID = 10;
-            public static final Angle Offset = Rotations.of(-0.130615234375);
-            public static final Translation2d place = new Translation2d(-OffsetValue, OffsetValue);
-            public static final SwerveModuleConstants<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration> constant = ModuleCreator.createModuleConstants(
-                SteerID, DriveID, EncoderID, Offset,
-            place.getMeasureX(), place.getMeasureY(), LeftSideInverted, SteerMotorInverted, SteerEncoderInverted
-            );
-        }
-        
-        public class FrontRight {
-            public static final int DriveID = 21;
-            public static final int SteerID = 22;
-            public static final int EncoderID = 2;
-            public static final Angle Offset = Rotations.of(-0.098388671875);
-            public static final Translation2d place = new Translation2d(OffsetValue, OffsetValue);
-            public static final SwerveModuleConstants<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration> constant = ModuleCreator.createModuleConstants(
-                SteerID, DriveID, EncoderID, Offset,
-            place.getMeasureX(), place.getMeasureY(), false, SteerMotorInverted, SteerEncoderInverted
-            );
-        }
-        
-
-        public class BackLeft {
             public static final int DriveID = 31;
             public static final int SteerID = 32;
             public static final int EncoderID = 3;
@@ -173,7 +147,19 @@ public class Constants {
         }
         
 
-        public class BackRight {
+        public class FrontRight {
+            public static final int DriveID = 11;
+            public static final int SteerID = 12;
+            public static final int EncoderID = 10;
+            public static final Angle Offset = Rotations.of(-0.130615234375);
+            public static final Translation2d place = new Translation2d(-OffsetValue, OffsetValue);
+            public static final SwerveModuleConstants<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration> constant = ModuleCreator.createModuleConstants(
+                SteerID, DriveID, EncoderID, Offset,
+            place.getMeasureX(), place.getMeasureY(), LeftSideInverted, SteerMotorInverted, SteerEncoderInverted
+            );
+        }
+        
+        public class BackLeft {
             public static final int DriveID = 41;
             public static final int SteerID = 42;
             public static final int EncoderID = 4;
@@ -184,6 +170,17 @@ public class Constants {
             place.getMeasureX(), place.getMeasureY(), RightSideInverted, SteerMotorInverted, SteerEncoderInverted
             );
         }
-        
+
+        public class BackRight {
+            public static final int DriveID = 21;
+            public static final int SteerID = 22;
+            public static final int EncoderID = 2;
+            public static final Angle Offset = Rotations.of(-0.098388671875);
+            public static final Translation2d place = new Translation2d(OffsetValue, OffsetValue);
+            public static final SwerveModuleConstants<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration> constant = ModuleCreator.createModuleConstants(
+                SteerID, DriveID, EncoderID, Offset,
+            place.getMeasureX(), place.getMeasureY(), false, SteerMotorInverted, SteerEncoderInverted
+            );
+        }    
     }
 }

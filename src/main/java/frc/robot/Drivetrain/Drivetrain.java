@@ -1,23 +1,19 @@
 package frc.robot.Drivetrain;
 
+import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Meters;
-import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.MetersPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Milliseconds;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
 import static edu.wpi.first.units.Units.Seconds;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
-
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.swerve.SwerveDrivetrain;
-import com.ctre.phoenix6.swerve.SwerveModule;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType;
@@ -48,7 +44,6 @@ import frc.robot.Vision.Vision;
 import frc.utils.Tools;
 import frc.utils.Tools.FieldPlace;
 import frc.utils.Tools.FieldSide;
-import frc.utils.Tools.RobotState;
 
 public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> implements Subsystem{
     private static Drivetrain inst;
@@ -60,7 +55,6 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     public SwerveRequest.FieldCentricFacingAngle ManualFacing;
     private SwerveRequest.RobotCentric ManualRobotCentric;
     private double SimTime = 0;
-    private boolean hasVisionUpdated = false;
     private boolean faceLock = false;
     private boolean isRobotCentric = false;
 
@@ -125,8 +119,8 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
                             .withTargetDirection(Rotation2d.k180deg)
                 );
             else setControl(
-                ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get())
-                        .withRotationalRate(omega.get())
+                isRobotCentric ? ManualRobotCentric.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())
+                               : ManualDrive.withVelocityX(vx.get()).withVelocityY(vy.get()).withRotationalRate(omega.get())
             );
         });
         
@@ -153,18 +147,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
             }
         });
     }
-
-    @Deprecated(forRemoval = true)
-    public Command driveToShootPose(){
-        return drive(getState().Pose.nearest(
-            List.of(new Pose2d(13.2,2,Rotation2d.fromDegrees(120)),
-            new Pose2d(13.4,6,Rotation2d.fromDegrees(-120)),
-            new Pose2d(14.1,5.1,Rotation2d.fromDegrees(-150)),
-            new Pose2d(14.2,2.7,Rotation2d.fromDegrees(150)))
-            .stream().map(p -> Tools.getPose(p, getSide())).toList()), getSide())
-                .beforeStarting(drive(new Pose2d(12,0.6,Rotation2d.k180deg), getSide()).onlyIf(() -> !inZone()));
-    }
-
+    
     public Command resetHeading(){
         return Commands.runOnce(() -> resetRotation(DriverStation.getAlliance().orElseThrow() == Alliance.Red ? GlobalConstants.RedAlliance : GlobalConstants.BlueAlliance));
     }
@@ -192,9 +175,14 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
             });
         }
 
+        if((getState().Pose.getRotation().getMeasure().isNear(Degrees.of(0), Degrees.of(10)) || getState().Pose.getRotation().getMeasure().isNear(Degrees.of(180), Degrees.of(10))) && getState().Pose.getMeasureY().isNear(Meters.of(4), Meters.of(1))) updateVisionPose().schedule();
 
         vision = Vision.getInstance();
         DogLog.log("Driver/Vision/IsVisionAvalible", vision == null);
+
+        if(vision != null){
+            vision.getRobotPose().ifPresent(s -> addVisionMeasurement(s.getFirst(), s.getSecond()));
+        }
 
         log();
     }
@@ -208,21 +196,18 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         DogLog.log("Debug/Drivetrain/TimeStamp", getState().Timestamp);
         DogLog.log("Driver/Drivetrain/isFaceLock", faceLock);
         DogLog.log("Debug/Drivetrain/ChassisForce", Arrays.stream(getModules()).map(m -> m.getDriveMotor().getStatorCurrent().getValueAsDouble()*m.getDriveMotor().getMotorKT().getValueAsDouble()/Constants.WheelRadius.in(Meters)/GlobalConstants.G.in(MetersPerSecondPerSecond)).mapToDouble(Double::doubleValue).sum());;
+        DogLog.log("Driver/Drivetrain/RobotSide", getSide().toString());
     }
 
     public Command updateVisionPose(){
         return Commands.runOnce(() -> {
             if(vision != null){
                 Optional<Pair<Pose2d,Double>> res = vision.getRobotPose();
-                if(DriverStation.isDisabled()) res.ifPresent(r -> resetPose(r.getFirst()));
-                else res.ifPresent(r -> addVisionMeasurement(r.getFirst(), r.getSecond()));
+                res.ifPresent(r -> resetPose(r.getFirst()));
                 DogLog.log("Driver/Vision/isUseVisionPose", true);
                 resetHeading();
-                
-                hasVisionUpdated = true;
             }else{
                 DogLog.log("Driver/Vision/isUseVisionPose", false);
-
             }
         }).ignoringDisable(true);
     }
@@ -301,7 +286,11 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
     }
 
     public FieldSide getSide(){
-        Distance dy = getState().Pose.getMeasureY().minus(GlobalConstants.CenterLine.getSecond());
-        return (DriverStation.getAlliance().orElseThrow() == Alliance.Red ? dy.gt(Meters.zero()) : dy.lt(Meters.zero())) ? FieldSide.LEFT : FieldSide.RIGHT;
+        Distance dy = GlobalConstants.CenterLine.getSecond().minus(getState().Pose.getMeasureY());
+        return
+            (DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red) ?
+            (dy.gt(Meters.zero()) ? FieldSide.LEFT : FieldSide.RIGHT) :
+            (dy.gt(Meters.zero()) ? FieldSide.RIGHT : FieldSide.LEFT)
+        ;
     }
 }

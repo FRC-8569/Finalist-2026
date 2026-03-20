@@ -4,7 +4,6 @@ import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Inches;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Millimeters;
-import static edu.wpi.first.units.Units.Radians;
 import static edu.wpi.first.units.Units.Rotations;
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
@@ -29,7 +28,7 @@ public class Constants {
         public static final int EncoderID = 53;
         public static final double GearRatio = 20;
         public static final Pair<Angle, Angle> PitchingAngle = Pair.of(Degrees.of(26), Degrees.of(38));
-        public static final Pair<Angle, Angle> PitchConstraints = Pair.of(Degrees.of(90).minus(PitchingAngle.getFirst()), Degrees.of(90).minus(PitchingAngle.getSecond()));
+        public static final Pair<Angle, Angle> PitchConstraints = Pair.of(Degrees.of(90).minus(PitchingAngle.getSecond()),Degrees.of(90).minus(PitchingAngle.getFirst()));
         public static final Angle PitchOffset = Rotations.of(0);// Degrees.of(256.72407)
         public static final Slot0Configs PitchPID = new Slot0Configs() //PositionVoltage
             .withKP(3.55).withKD(0)

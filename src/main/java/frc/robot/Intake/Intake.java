@@ -4,6 +4,7 @@ import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
+import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
 
 import java.util.List;
@@ -21,6 +22,7 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 
 import dev.doglog.DogLog;
 import edu.wpi.first.math.Pair;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -96,7 +98,7 @@ public class Intake implements Subsystem{
     }
 
      public Command moveIntake(boolean isOut){
-        return run(() -> {
+        return Commands.run(() -> {
             TongueMotor.setControl(TonguePID.withPosition(isOut ? 1.4 : 0));
         }).until(() -> TongueMotor.getVelocity().getValue().abs(RotationsPerSecond) < 0.01 && getIntakePosition().isNear(TonguePID.getPositionMeasure(), 0.1))
             .finallyDo(() -> {
@@ -105,16 +107,26 @@ public class Intake implements Subsystem{
     }
 
     public Command intake(boolean isIntake){
-        double v = Math.hypot(Drivetrain.getInstance().getState().Speeds.vxMetersPerSecond, Drivetrain.getInstance().getState().Speeds.vyMetersPerSecond);
-        return setRollVelocity(MetersPerSecond.of(v).times(2));
+        return runEnd(
+            () -> {
+                RollMotor.set(isIntake ? 0.2 : -0.2);
+                if(RollMotor.getStatorCurrent().getValue().gt(Amps.of(80))){
+                    RollMotor.set(-0.1);
+                    try{
+                        Thread.sleep(100);
+                    }catch(Exception e){}
+                    RollMotor.set(isIntake ? 0.2 : -0.2);
+                }
+            }, 
+            () -> RollMotor.stopMotor());
     }
 
-    public Command setRollVelocity(LinearVelocity velocity){
+    private Command setRollVelocity(LinearVelocity velocity){
         double v = Math.max(Roller.SpeedRange.getFirst().in(MetersPerSecond), Math.min(Roller.SpeedRange.getSecond().in(MetersPerSecond), velocity.in(MetersPerSecond)));
-        return run(() -> {
+        return Commands.run(() -> {
             RollMotor.setControl(RollingPID.withVelocity(RadiansPerSecond.of(v/Roller.WheelRadius.in(Meters))));
-            if(RollMotor.getStatorCurrent().getValue().gt(Amps.of(80))){
-                RollMotor.set(-0.1);
+            if(RollMotor.getStatorCurrent().getValue().gt(Amps.of(60))){
+                RollMotor.set(-0.2);
                 try{
                     Thread.sleep(100);
                 }catch(Exception e){}
@@ -122,6 +134,11 @@ public class Intake implements Subsystem{
             }
         })
                 .handleInterrupt(() -> RollMotor.stopMotor());
+    }
+
+    public Command setRollVelocity(){
+        ChassisSpeeds speds = Drivetrain.getInstance().getState().Speeds;
+        return setRollVelocity(MetersPerSecond.of(Math.hypot(speds.vxMetersPerSecond, speds.vyMetersPerSecond)));
     }
 
     public Command CalibrateIntake(){
@@ -144,10 +161,7 @@ public class Intake implements Subsystem{
     @Override
     public void periodic(){
         if(DriverStation.isDisabled() && TongueMotor.getControlMode().getValue() != ControlModeValue.CoastOut) TongueMotor.setControl(new CoastOut());
-        // 
-        
         log();
-
     }
 
 

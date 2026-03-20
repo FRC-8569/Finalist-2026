@@ -6,18 +6,13 @@ import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Newton;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
-import static edu.wpi.first.units.Units.Rotations;
-
 import java.util.List;
 import java.util.function.Supplier;
 
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
-import com.ctre.phoenix6.controls.MotionMagicExpoVoltage;
 import com.ctre.phoenix6.controls.MotionMagicVelocityTorqueCurrentFOC;
-import com.ctre.phoenix6.controls.MotionMagicVoltage;
-import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.controls.PositionVoltage;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
@@ -29,23 +24,19 @@ import dev.doglog.DogLog;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.Alert;
-import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
-import frc.utils.Tools;
 import frc.utils.Tools.RobotState;
 
 public class Shooter implements Subsystem {
     public TalonFX ShootingMotor, PitchingMotor;
-    public CANcoder PitchEncoder;
-    
+
     public PositionVoltage PitchingPID;
     public MotionMagicVelocityTorqueCurrentFOC ShootPID;
     public DutyCycleOut IndexPID, SpindexPID;
@@ -55,12 +46,12 @@ public class Shooter implements Subsystem {
     public SwerveModuleState targetState = new SwerveModuleState(0, Rotation2d.kZero);
     
     public Alert ShootTempAlert, ShootStallingError;
+    public boolean isStalled = false;
 
     private static Shooter inst;
     private Shooter(){
         PitchingMotor = new TalonFX(Pitch.MotorID, Constants.bus);
         ShootingMotor = new TalonFX(Shoot.MotorID, Constants.bus);
-        PitchEncoder = new CANcoder(Pitch.EncoderID, Constants.bus);
     
         PitchingPID = new PositionVoltage(0);
         ShootPID = new MotionMagicVelocityTorqueCurrentFOC(0);
@@ -78,7 +69,6 @@ public class Shooter implements Subsystem {
             .withNeutralMode(NeutralModeValue.Brake)
             .withInverted(InvertedValue.Clockwise_Positive);
         PitchConfig.Feedback
-            .withFusedCANcoder(PitchEncoder)
             .withSensorToMechanismRatio(10);
         PitchConfig.withSlot0(Pitch.PitchPID);
         PitchConfig.withMotionMagic(Pitch.PitchMagic);
@@ -99,7 +89,6 @@ public class Shooter implements Subsystem {
         
         PitchingMotor.getConfigurator().apply(PitchConfig);
         ShootingMotor.getConfigurator().apply(ShootConfig);
-        PitchEncoder.getConfigurator().apply(PitchEncoderConfig);
 
         register();
     }
@@ -119,10 +108,6 @@ public class Shooter implements Subsystem {
         }).withName("Shooting in %.2f m/s %.2f degree".formatted(state.speedMetersPerSecond, state.angle.getDegrees()));
     }
 
-    public Command shoot(){
-        return setState(Tools.getPredictState());
-    }
-
     public Command setState(RobotState state){
         return setState(state.getShootingState());
     }
@@ -137,8 +122,16 @@ public class Shooter implements Subsystem {
             .handleInterrupt(() -> ShootingMotor.stopMotor());
     }
 
-    public Command seedShooter(){
-        return runOnce(() -> PitchEncoder.setPosition(Degrees.of(256))).onlyIf(() -> DriverStation.isDisabled()).ignoringDisable(true);
+    public Command calibrateShooter(){
+        return runOnce(() -> PitchingMotor.setPosition(Degrees.of(25.6))).ignoringDisable(true);
+        // return runEnd(() -> {
+        //     PitchingMotor.getConfigurator().apply(Pitch.PitchLimit.withReverseSoftLimitEnable(false));
+        //     PitchingMotor.set(-0.1);
+        //     }, () -> {
+        //         PitchingMotor.stopMotor();
+        //         PitchEncoder.setPosition(Degrees.of(256));
+        //         PitchingMotor.getConfigurator().apply(Pitch.PitchLimit.withReverseSoftLimitEnable(true));
+        //     }).until(() -> PitchingMotor.getStatorCurrent().getValue().gt(Amps.of(30)));
     }
 
     public Command stopShooter(){
@@ -159,6 +152,7 @@ public class Shooter implements Subsystem {
         DogLog.log("Driver/Shooter/TargetState", targetState);
         DogLog.log("Driver/Shooter/CurrentState", getState());
         if(getCurrentCommand() != null) DogLog.log("Debug/Shooter/CurrentCommand", getCurrentCommand().getName());
+      
 
         ShootTempAlert.set(ShootingMotor.getDeviceTemp().getValue().gt(Celsius.of(60)));
         ShootStallingError.set((ShootingMotor.getStatorCurrent().getValueAsDouble()*ShootingMotor.getMotorKT().getValueAsDouble())/Shoot.WheelRadius.in(Meters) > 20);

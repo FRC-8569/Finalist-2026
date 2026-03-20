@@ -12,6 +12,6 @@ public class Constants {
 
     public class Spindex {
         public static final int MotorID = 57;
-        public static final CANBus bus= new CANBus("Drivetrain");
+        public static final CANBus bus= new CANBus("rio");
     }
 }

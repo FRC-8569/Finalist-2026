@@ -4,24 +4,19 @@ import static edu.wpi.first.units.Units.Centimeters;
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.Radians;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
 
 import com.ctre.phoenix6.Utils;
 
 import dev.doglog.DogLog;
-import edu.wpi.first.math.Nat;
 import edu.wpi.first.math.Pair;
-import edu.wpi.first.math.Vector;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
@@ -34,7 +29,6 @@ import frc.robot.Shooter.Constants;
 import frc.robot.Shooter.Shooter;
 import frc.robot.Shooter.Constants.Pitch;
 import frc.robot.Shooter.Constants.Shoot;
-import frc.utils.FuelSim.Hub;
 
 public class Tools {
     public static RobotState getCurrentState(){
@@ -46,12 +40,12 @@ public class Tools {
     }
    
     public static RobotState getPredictState(){
-        return RobotState.create(Tools.HUB);
+        return RobotState.create(Tools.HUB, Drivetrain.getInstance().getState().Pose);
     }
 
     public static record RobotState(Rotation2d drivetrainFacing, SwerveModuleState shooterState) implements Subsystem {
         private static final double g = 9.81;
-        private static double distance = -1, height = -1;
+        private static double height = -1;
 
         public Rotation2d getFacing() {
             return drivetrainFacing;
@@ -86,8 +80,6 @@ public class Tools {
 
             Rotation2d pitch = Rotation2d.fromRadians(Math.atan2(h, d));
             double v = Math.sqrt(2*g*height)/Math.abs(pitch.getSin());
-
-            distance = d;
             height = h;
 
             DogLog.log("ShootPredictor/RobotFacing", facing);
@@ -98,16 +90,21 @@ public class Tools {
             return new RobotState(facing.plus(new Rotation2d(Degrees.of(225))), new SwerveModuleState(MetersPerSecond.of(v), pitch));
         }
 
-        public static Rotation2d getDrivetrainFacing(Transform3d target){
-            return Rotation2d.fromRadians(Math.atan2(target.getY(), target.getX())).plus(Rotation2d.fromDegrees(25));
+        public static RobotState getNeutralState(){
+            double d = Math.abs(DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Red ? Drivetrain.getInstance().getState().Pose.getMeasureX().minus(Meters.of(14)).in(Meters) : Drivetrain.getInstance().getState().Pose.getMeasureX().minus(Meters.of(2)).in(Meters));
+            return new RobotState(Rotation2d.k180deg, new SwerveModuleState(Math.sqrt(g*d*d/(d-4))+5, Rotation2d.fromDegrees(45)));
         }
 
-        public static Rotation2d getDrivetrainFacing(FieldObjects obj){
-            return getDrivetrainFacing(new Transform3d(new Pose3d(Drivetrain.getInstance().getState().Pose), obj.getPose()));
+        public static Rotation2d getDrivetrainFacing(Transform3d target){
+            return Rotation2d.fromRadians(Math.atan2(target.getY(), target.getX()));
+        }
+
+        public static Rotation2d getDrivetrainFacing(FieldObjects obj, Pose2d target){
+            return getDrivetrainFacing(new Transform3d(new Pose3d(target), obj.getPose()));
         }
         
-        public static RobotState create(FieldObjects obj) {
-            return create(new Transform3d((new Pose3d(Drivetrain.getInstance().getState().Pose).plus(Constants.ShooterPlace)), obj.getPose()));
+        public static RobotState create(FieldObjects obj, Pose2d targetPose) {
+            return create(new Transform3d(new Pose3d(targetPose), obj.getPose()));
         }
 
         public RobotState optmize(){
@@ -141,7 +138,7 @@ public class Tools {
         return new Pose2d(
             shouldMirrorX ? GlobalConstants.CenterLine.getFirst().plus(dX) : raw.getMeasureX(),
             shouldMirrorY ? GlobalConstants.CenterLine.getSecond().plus(dY) : raw.getMeasureY() , 
-            shouldMirrorX ? new Rotation2d(Degrees.of(180).minus(raw.getRotation().getMeasure())) : raw.getRotation());
+            shouldMirrorX ? Rotation2d.k180deg.minus(raw.getRotation().times(shouldMirrorY ? 2 : 1)) : raw.getRotation());
 
     }
 
@@ -156,6 +153,11 @@ public class Tools {
 
     public static enum FieldSide{
         LEFT, RIGHT;
+
+        public static FieldSide getSide(Pose2d pose) {
+            Distance dy = pose.getMeasureY().minus(GlobalConstants.CenterLine.getSecond());
+            return ((DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Blue) ? dy.gt(Meters.zero()) : dy.lt(Meters.zero())) ? FieldSide.LEFT : FieldSide.RIGHT;
+        }
     }
 
     
@@ -171,16 +173,27 @@ public class Tools {
 
     public static record ShootPreset(Pose2d pose, RobotState state){
         public Pose2d getPose(){
-            return new Pose2d(pose.getX(),pose.getY(),state.drivetrainFacing);
+            return new Pose2d(pose.getX(), pose.getY(), state.drivetrainFacing);
+        }
+
+        public ShootPreset getMirrorPose(){
+            Distance dY = GlobalConstants.CenterLine.getSecond().minus(pose.getMeasureY());
+            
+            return new ShootPreset(new Pose2d(pose.getMeasureX(), GlobalConstants.CenterLine.getSecond().plus(dY), Rotation2d.k180deg), new RobotState(Rotation2d.kCW_90deg.minus(state.getFacing().unaryMinus()), getShooterState()));
         }
 
         public SwerveModuleState getShooterState(){
             return state.shooterState;
         }
+
+        public double getDistance(){
+            Transform2d t = new Transform2d(Drivetrain.getInstance().getState().Pose, Tools.getPose(pose, null));
+            return Math.hypot(t.getMeasureX().in(Meters), t.getMeasureY().in(Meters));
+        }
     }
 
-    public static ShootPreset RightHub = new ShootPreset(new Pose2d(14.5,6.2, Rotation2d.kZero), new RobotState(RobotState.getDrivetrainFacing(Tools.HUB), new SwerveModuleState(17, Rotation2d.fromDegrees(68))));
-
+    public static ShootPreset RightBump = new ShootPreset(new Pose2d(14.5,6.2, Rotation2d.kZero), new RobotState(Rotation2d.fromDegrees(-166.88), new SwerveModuleState(17, Rotation2d.fromDegrees(65))));
+    public static ShootPreset LeftBump = new ShootPreset(new Pose2d(14.5,1.3, Rotation2d.kZero), new RobotState(Rotation2d.fromDegrees(13.12-90), new SwerveModuleState(16, Rotation2d.fromDegrees(65))));
 
     public static boolean isShootable(){
         return isHubActive() && Drivetrain.getInstance().inZone();

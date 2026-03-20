@@ -1,5 +1,10 @@
 package frc.robot.Auto;
 
+import static edu.wpi.first.units.Units.Seconds;
+
+import java.util.function.Supplier;
+
+import dev.doglog.DogLog;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.Timer;
@@ -9,6 +14,7 @@ import edu.wpi.first.wpilibj2.command.WaitCommand;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
+import frc.utils.Tools;
 import frc.utils.Tools.FieldSide;
 
 public class Auto {
@@ -18,12 +24,16 @@ public class Auto {
     public static Timer timer = new Timer();
 
     public static Command getAutoCommand(){
-        FieldSide side = drivetrain.getSide();
-        return new SequentialCommandGroup(
-            drivetrain.drive(new Pose2d(9,7,Rotation2d.kCCW_90deg), side).raceWith(intake.moveIntake(true)),
-            drivetrain.drive(new Pose2d(9,4.5,Rotation2d.kCCW_90deg), side).raceWith(intake.intake(true)),
-            drivetrain.drive(new Pose2d(11.25, 7.4, Rotation2d.k180deg), side),
-            CompoundCommand.shoot(new Pose2d(14,6, Rotation2d.k180deg), side)
-        );
+        DogLog.log("Autonomous/DeterminingPose", drivetrain.getState().Pose);
+        return drivetrain.getSide() == FieldSide.RIGHT ? 
+            new SequentialCommandGroup(
+                CompoundCommand.shoot(Tools.RightBump, Seconds.of(3)),
+                drivetrain.drive(new Pose2d(16.0,7.2,Rotation2d.kCCW_90deg), null),
+                new WaitCommand(Seconds.of(5)),
+                CompoundCommand.shoot(Tools.RightBump)
+            ) : 
+            new SequentialCommandGroup(
+                CompoundCommand.shoot(Tools.LeftBump, Seconds.of(3))
+            );
     }
 }

@@ -17,7 +17,7 @@ import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
 
 public class Constants {
-    public static final CANBus bus = new CANBus("Drivetrain");
+    public static final CANBus bus = new CANBus("rio");
     public class Tongue {
         public static final int MotorID = 51;
         public static final Slot0Configs TonguePID = new Slot0Configs()

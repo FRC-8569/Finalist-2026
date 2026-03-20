@@ -7,44 +7,55 @@ package frc.robot;
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
-import com.ctre.phoenix6.Utils;
-
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
-import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
+import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.button.CommandJoystick;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Auto.Auto;
+import frc.robot.Auto.CompoundCommand;
 import frc.robot.Climber.Climber;
 import frc.robot.Drivetrain.Constants;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
+import frc.robot.Shooter.Constants.Pitch;
+import frc.robot.Shooter.Constants.Shoot;
 import frc.robot.Spindexer.Spindexer;
 import frc.utils.Tools;
+import frc.utils.Tools.RobotState;
+import frc.utils.Tools.ShootPreset;
 
 public class RobotContainer {
   public Drivetrain drivetrain = Drivetrain.getInstance();
   public Intake intake = Intake.getInstance();
   public Shooter shooter = Shooter.getInstance();
   public Spindexer spindexer = Spindexer.getInstance();
-  public Climber climber = Climber.getInstance();
+  // public Climber climber = Climber.getInstance();
   public CommandXboxController MainController = new CommandXboxController(0);
   public CommandXboxController SecondController = new CommandXboxController(1);
+  public SendableChooser<ShootPreset> PresetShooter = new SendableChooser<ShootPreset>();
+  public boolean manualShoot = false;
 
   public RobotContainer() {
+    PresetShooter.addOption("LeftBump", Tools.LeftBump);
+    PresetShooter.addOption("RightBump", Tools.RightBump);
+    SmartDashboard.putData("PresetsChooser", PresetShooter);
+
     drivetrain.setDefaultCommand(drivetrain.drive(
       () -> Constants.MaxVelocity.times(MainController.getLeftY()).times(4.0/5), 
       () -> Constants.MaxVelocity.times(MainController.getLeftX()).times(4.0/5), 
-      () -> Constants.MaxOmega
-      .times(-1.0).times(Math.abs(MainController.getRightX()) > 0 ? MainController.getRightX() : SecondController.getRightX())));
+      () -> Constants.MaxOmega.times(-1.0).times(Math.abs(MainController.getRightX()) > 0 ? MainController.getRightX() : SecondController.getRawAxis(3))));
 
     shooter.setDefaultCommand(shooter.setState(() -> new SwerveModuleState(2, shooter.getState().angle)));
-    
-   configureBindings();
+    intake.setDefaultCommand(intake.intake(true));
+    configureBindings();
 
 
     DogLog.setOptions(new DogLogOptions()
@@ -58,43 +69,43 @@ public class RobotContainer {
 
 
   private void configureBindings() {
-    // MainController.b().toggleOnTrue(shooter.shoot());
-    
-    MainController.a().toggleOnTrue(intake.intake(true)); 
-    MainController.b().toggleOnTrue(drivetrain.drive(Tools.RightHub.getPose(), null).andThen(shooter.setState(Tools.RightHub.state())));
-    MainController.x().whileTrue(climber.climb(-0.5));
-    MainController.y().whileTrue(climber.climb(0.5));
-
+    MainController.a().toggleOnTrue(intake.setRollVelocity()); 
+    MainController.b().toggleOnTrue(
+      CompoundCommand.shoot(() -> PresetShooter.getSelected()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1))
+      .onlyIf(() -> drivetrain.inZone())); 
+    MainController.b().toggleOnTrue(shooter.setState(RobotState.getNeutralState()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1)));
+    MainController.x().onTrue(intake.CalibrateIntake());
+    MainController.y().onTrue(drivetrain.updateVisionPose());
     MainController.leftBumper().onTrue(intake.moveIntake(true));
     MainController.rightBumper().onTrue(intake.moveIntake(false));
-    //TODO: pitch offseting TBD
-    //TODO: shoot offseting TBD
+    // MainController.leftTrigger().whileTrue(climber.climb(0.5));
+    // MainController.rightTrigger().whileTrue(climber.climb(-0.5));
 
-    MainController.leftStick(
-
-    ).toggleOnTrue(drivetrain.faceLock());
-
-    MainController.povUp().onTrue(shooter.seedShooter());
-    // MainController.povDown().toggleOnTrue(drivetrain.robotCentric());
-    MainController.povLeft().onTrue(drivetrain.updateVisionPose());
-    MainController.povRight().onTrue(intake.CalibrateIntake());
+    MainController.leftStick().toggleOnTrue(drivetrain.faceLock());
+    // MainController.rightStick().onTrue(climber.CalibrateClimber());
+    MainController.povDown().onTrue(shooter.calibrateShooter());
+    MainController.povUp().onTrue(drivetrain.robotCentric().onlyIf(() -> DriverStation.isEnabled()));
+    MainController.povLeft().toggleOnTrue(CompoundCommand.shoot(Tools.LeftBump).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1)));
+    MainController.povRight().toggleOnTrue(CompoundCommand.shoot(Tools.RightBump).until(() ->  (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1)));
     MainController.back().onTrue(drivetrain.fieldReset());
     MainController.start().onTrue(drivetrain.resetHeading());
+    MainController.rightStick().toggleOnTrue(shooter.setState(() -> new SwerveModuleState(Shoot.MaxVelocity.times(SecondController.getRightTriggerAxis()), new Rotation2d(Pitch.PitchConstraints.getFirst().plus(Degrees.of(14*SecondController.getLeftTriggerAxis()))))));
     
     //------------------------------------------------------------------
+
+    // SecondController.leftBumper().onTrue(intake.moveIntake(true));
+    // SecondController.rightBumper().onTrue(intake.moveIntake(false));
+    // SecondController.x().onTrue(drivetrain.updateVisionPose());
+    // SecondController.y().onTrue(intake.CalibrateIntake());
+    
     SecondController.leftBumper().onTrue(intake.moveIntake(true));
     SecondController.rightBumper().onTrue(intake.moveIntake(false));
-
-    // new Trigger(() -> DrivetrainController.povUp().getAsBoolean() && IntakeController.povUp().getAsBoolean())
-    //   .onTrue(drivetrain.updateVisionPose());
-
-    // new Trigger(() -> game.predictRobotState().isPresent() ? game.predictRobotState().map(state -> state.isNear(game.getRobotState())).orElse(false) : false)
-    //     .and(() -> drivetrain.inZone())
-    //     .and(() -> game.isHubActive())
-    //     .whileTrue(Commands.runEnd(() -> DrivetrainController.setRumble(RumbleType.kBothRumble, 0.8), () -> DrivetrainController.setRumble(RumbleType.kBothRumble, 0)));
+    SecondController.x().onTrue(intake.CalibrateIntake());
+    SecondController.y().onTrue(drivetrain.updateVisionPose());
+    SecondController.a().onTrue(intake.setRollVelocity());
   }
 
   public Command getAutonomousCommand() {
-    return Auto.getAutoCommand().beforeStarting(drivetrain.updateVisionPose()).onlyIf(() -> Utils.isSimulation());
+    return Auto.getAutoCommand();
   }
 }
