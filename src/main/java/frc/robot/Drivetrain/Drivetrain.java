@@ -232,7 +232,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
                 (speeds, ff) -> setControl(AutoDrive.withSpeeds(speeds).withWheelForceFeedforwardsX(ff.robotRelativeForcesX()).withWheelForceFeedforwardsY(ff.robotRelativeForcesY())),
                 Constants.AutoPID,
                 RobotConfig.fromGUISettings(),
-                () -> DriverStation.getAlliance().orElseThrow() == Alliance.Red,
+                () -> DriverStation.getAlliance().orElseThrow() == Alliance.Blue,
                 this
             );
         }catch(Exception e){

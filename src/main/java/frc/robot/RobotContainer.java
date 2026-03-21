@@ -4,31 +4,32 @@
 
 package frc.robot;
 
-import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.Percent;
+
+import java.util.List;
+
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.auto.NamedCommands;
+import com.pathplanner.lib.commands.PathPlannerAuto;
 
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.CommandJoystick;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
-import frc.robot.Auto.Auto;
 import frc.robot.Auto.CompoundCommand;
-import frc.robot.Climber.Climber;
+import frc.robot.Auto.PathPlannerOnlyCommands;
 import frc.robot.Drivetrain.Constants;
 import frc.robot.Drivetrain.Drivetrain;
 import frc.robot.Intake.Intake;
 import frc.robot.Shooter.Shooter;
-import frc.robot.Shooter.Constants.Pitch;
-import frc.robot.Shooter.Constants.Shoot;
 import frc.robot.Spindexer.Spindexer;
 import frc.utils.Tools;
 import frc.utils.Tools.RobotState;
@@ -44,11 +45,13 @@ public class RobotContainer {
   public CommandXboxController SecondController = new CommandXboxController(1);
   public SendableChooser<ShootPreset> PresetShooter = new SendableChooser<ShootPreset>();
   public boolean manualShoot = false;
+  private SendableChooser<Command> AutoChooser = AutoBuilder.buildAutoChooser();
 
   public RobotContainer() {
-    PresetShooter.addOption("LeftBump", Tools.LeftBump);
-    PresetShooter.addOption("RightBump", Tools.RightBump);
-    SmartDashboard.putData("PresetsChooser", PresetShooter);
+    NamedCommands.registerCommands(List.of(
+      Pair.of("ShortWhile", PathPlannerOnlyCommands.shootShortWhile()),
+      Pair.of("LongWhile", PathPlannerOnlyCommands.shootLongWhile())
+    ));
 
     drivetrain.setDefaultCommand(drivetrain.drive(
       () -> Constants.MaxVelocity.times(MainController.getLeftY()).times(4.0/5), 
@@ -67,6 +70,7 @@ public class RobotContainer {
       .withNtPublish(true)
       .withLogExtras(true));
     DogLog.setEnabled(true);
+    SmartDashboard.putData("AutonomousChooser", AutoChooser);
   }
 
 
@@ -75,8 +79,9 @@ public class RobotContainer {
     MainController.b().toggleOnTrue(
       CompoundCommand.shoot(() -> PresetShooter.getSelected()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1))
       .onlyIf(() -> drivetrain.inZone())); 
-    MainController.b().toggleOnTrue(shooter.setState(RobotState.getNeutralState()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1))
-    .alongWith(Commands.runOnce(() -> DogLog.log("Driver/Shooter/manualControl", false))));
+    // MainController.b().toggleOnTrue(shooter.setState(RobotState.getNeutralState()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1))
+    // .alongWith(Commands.runOnce(() -> DogLog.log("Driver/Shooter/manualControl", false))));
+    MainController.b().toggleOnTrue(shooter.setState(new SwerveModuleState(18, Rotation2d.fromDegrees(90-27))));
     MainController.x().onTrue(intake.CalibrateIntake());
     MainController.y().onTrue(drivetrain.updateVisionPose());
     MainController.leftBumper().onTrue(intake.moveIntake(true));
@@ -106,9 +111,11 @@ public class RobotContainer {
     SecondController.x().onTrue(intake.CalibrateIntake());
     SecondController.y().onTrue(drivetrain.updateVisionPose());
     SecondController.a().onTrue(intake.setRollVelocity());
+    SecondController.b().toggleOnTrue(shooter.setState(new SwerveModuleState(18, Rotation2d.fromDegrees(90-27))));
+    SecondController.povLeft().or(SecondController.povRight()).toggleOnTrue(shooter.setState(Tools.RightBump.state()));
   }
 
   public Command getAutonomousCommand() {
-    return Auto.getAutoCommand();
+    return AutoChooser.getSelected();
   }
 }
