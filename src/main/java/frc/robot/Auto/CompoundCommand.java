@@ -5,6 +5,7 @@ import static edu.wpi.first.units.Units.MetersPerSecond;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import dev.doglog.DogLog;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Transform3d;
@@ -37,8 +38,9 @@ public class CompoundCommand {
     }
 
     public static Command shoot(ShootPreset set, Time time){
-        if (time != null) return drivetrain.drive(set.getPose(), null).andThen(shooter.setState(set.getShooterState()).withTimeout(time));
-        else return drivetrain.drive(set.getPose(), null).andThen(shooter.setState(set.getShooterState()));
+        DogLog.log("Debug/Drivetrain/DeterminingPose", set.getPose());
+        if (time != null) return drivetrain.drive(set.getPose(), drivetrain.getSide()).andThen(shooter.setState(set.getShooterState()).withTimeout(time));
+        else return drivetrain.drive(set.getPose(), drivetrain.getSide()).andThen(shooter.setState(set.getShooterState()));
     }
 
     public static Command shoot(Supplier<ShootPreset> set){

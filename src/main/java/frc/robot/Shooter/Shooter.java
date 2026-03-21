@@ -6,6 +6,8 @@ import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Newton;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
+import static edu.wpi.first.units.Units.Rotations;
+
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -24,7 +26,9 @@ import dev.doglog.DogLog;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.units.measure.Dimensionless;
 import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Velocity;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -91,6 +95,7 @@ public class Shooter implements Subsystem {
         ShootingMotor.getConfigurator().apply(ShootConfig);
 
         register();
+        PitchingMotor.setPosition(Degrees.of(25.6));
     }
 
     public SwerveModuleState getState(){
@@ -116,6 +121,10 @@ public class Shooter implements Subsystem {
         return setState(state.get());
     }
 
+    public Command manualDrive(Supplier<Dimensionless> PitchPercent, Supplier<Dimensionless> VelocityPercent){
+        return setState(() -> new SwerveModuleState(Shoot.MaxVelocity.times(VelocityPercent.get()), Rotation2d.fromDegrees(25.6))).withName("manual Shooting shooter");
+    }
+
     public Command setShooterState(LinearVelocity vel){
         return run(() -> ShootingMotor.setControl(ShootPID.withVelocity(RadiansPerSecond.of(vel.in(MetersPerSecond)/Shoot.WheelRadius.in(Meters)))))
             .until(() -> ShootingMotor.getVelocity().getValue().isNear(ShootPID.getVelocityMeasure(), 0.05))
@@ -123,7 +132,7 @@ public class Shooter implements Subsystem {
     }
 
     public Command calibrateShooter(){
-        return runOnce(() -> PitchingMotor.setPosition(Degrees.of(25.6))).ignoringDisable(true);
+        return Commands.runOnce(() -> PitchingMotor.setPosition(Degrees.of(25.6))).ignoringDisable(true);
         // return runEnd(() -> {
         //     PitchingMotor.getConfigurator().apply(Pitch.PitchLimit.withReverseSoftLimitEnable(false));
         //     PitchingMotor.set(-0.1);

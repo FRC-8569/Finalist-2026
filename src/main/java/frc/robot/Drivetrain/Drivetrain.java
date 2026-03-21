@@ -289,7 +289,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
         Distance dy = GlobalConstants.CenterLine.getSecond().minus(getState().Pose.getMeasureY());
         return
             (DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red) ?
-            (dy.gt(Meters.zero()) ? FieldSide.LEFT : FieldSide.RIGHT) :
+            (dy.gt(Meters.zero()) ? FieldSide.RIGHT : FieldSide.LEFT) :
             (dy.gt(Meters.zero()) ? FieldSide.RIGHT : FieldSide.LEFT)
         ;
     }

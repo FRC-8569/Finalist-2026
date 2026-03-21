@@ -127,7 +127,7 @@ public class Tools {
     private static Pose2d getPose(Pose2d raw, Alliance alliance, FieldSide side){
         Distance dX = GlobalConstants.CenterLine.getFirst().minus(raw.getMeasureX());
         Distance dY = GlobalConstants.CenterLine.getSecond().minus(raw.getMeasureY());
-
+        DogLog.log("Debug/Drivetrain/dY", dY);
         boolean shouldMirrorX = alliance == Alliance.Blue ? dX.lt(Meters.zero()) : dX.gt(Meters.zero());
         boolean shouldMirrorY =
                     side != null &&
@@ -171,15 +171,15 @@ public class Tools {
     }
 
 
-    public static record ShootPreset(Pose2d pose, RobotState state){
+    public static record ShootPreset(Pose2d pose, RobotState state, FieldSide side){
         public Pose2d getPose(){
-            return new Pose2d(pose.getX(), pose.getY(), state.drivetrainFacing);
+            return Tools.getPose(new Pose2d(pose.getX(), pose.getY(), state.drivetrainFacing), side);
         }
 
         public ShootPreset getMirrorPose(){
             Distance dY = GlobalConstants.CenterLine.getSecond().minus(pose.getMeasureY());
             
-            return new ShootPreset(new Pose2d(pose.getMeasureX(), GlobalConstants.CenterLine.getSecond().plus(dY), Rotation2d.k180deg), new RobotState(Rotation2d.kCW_90deg.minus(state.getFacing().unaryMinus()), getShooterState()));
+            return new ShootPreset(new Pose2d(pose.getMeasureX(), GlobalConstants.CenterLine.getSecond().plus(dY), Rotation2d.k180deg), new RobotState(Rotation2d.kCW_90deg.minus(state.getFacing().unaryMinus()), getShooterState()), FieldSide.getSide(pose));
         }
 
         public SwerveModuleState getShooterState(){
@@ -192,8 +192,8 @@ public class Tools {
         }
     }
 
-    public static ShootPreset RightBump = new ShootPreset(new Pose2d(14.5,6.2, Rotation2d.kZero), new RobotState(Rotation2d.fromDegrees(-166.88), new SwerveModuleState(17, Rotation2d.fromDegrees(65))));
-    public static ShootPreset LeftBump = new ShootPreset(new Pose2d(14.5,1.3, Rotation2d.kZero), new RobotState(Rotation2d.fromDegrees(13.12-90), new SwerveModuleState(16, Rotation2d.fromDegrees(65))));
+    public static ShootPreset RightBump = new ShootPreset(new Pose2d(14.5,6.2, Rotation2d.kZero), new RobotState(Rotation2d.fromDegrees(-166.88), new SwerveModuleState(17, Rotation2d.fromDegrees(65))), FieldSide.RIGHT);
+    public static ShootPreset LeftBump = new ShootPreset(new Pose2d(14.5,1.3, Rotation2d.kZero), new RobotState(Rotation2d.fromDegrees(13.12-90), new SwerveModuleState(16, Rotation2d.fromDegrees(65))), FieldSide.LEFT);
 
     public static boolean isShootable(){
         return isHubActive() && Drivetrain.getInstance().inZone();

@@ -6,6 +6,7 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.Percent;
 
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
@@ -18,6 +19,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandJoystick;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Auto.Auto;
 import frc.robot.Auto.CompoundCommand;
 import frc.robot.Climber.Climber;
@@ -53,7 +55,7 @@ public class RobotContainer {
       () -> Constants.MaxVelocity.times(MainController.getLeftX()).times(4.0/5), 
       () -> Constants.MaxOmega.times(-1.0).times(Math.abs(MainController.getRightX()) > 0 ? MainController.getRightX() : SecondController.getRawAxis(3))));
 
-    shooter.setDefaultCommand(shooter.setState(() -> new SwerveModuleState(2, shooter.getState().angle)));
+    shooter.setDefaultCommand(shooter.setState(() -> new SwerveModuleState(2, Rotation2d.fromDegrees(90).minus(shooter.getState().angle))));
     intake.setDefaultCommand(intake.intake(true));
     configureBindings();
 
@@ -73,7 +75,8 @@ public class RobotContainer {
     MainController.b().toggleOnTrue(
       CompoundCommand.shoot(() -> PresetShooter.getSelected()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1))
       .onlyIf(() -> drivetrain.inZone())); 
-    MainController.b().toggleOnTrue(shooter.setState(RobotState.getNeutralState()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1)));
+    MainController.b().toggleOnTrue(shooter.setState(RobotState.getNeutralState()).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1))
+    .alongWith(Commands.runOnce(() -> DogLog.log("Driver/Shooter/manualControl", false))));
     MainController.x().onTrue(intake.CalibrateIntake());
     MainController.y().onTrue(drivetrain.updateVisionPose());
     MainController.leftBumper().onTrue(intake.moveIntake(true));
@@ -82,15 +85,15 @@ public class RobotContainer {
     // MainController.rightTrigger().whileTrue(climber.climb(-0.5));
 
     MainController.leftStick().toggleOnTrue(drivetrain.faceLock());
-    // MainController.rightStick().onTrue(climber.CalibrateClimber());
-    MainController.povDown().onTrue(shooter.calibrateShooter());
+    MainController.povDown().onTrue(shooter.calibrateShooter().onlyIf(() -> DriverStation.isDisabled()));
     MainController.povUp().onTrue(drivetrain.robotCentric().onlyIf(() -> DriverStation.isEnabled()));
     MainController.povLeft().toggleOnTrue(CompoundCommand.shoot(Tools.LeftBump).until(() -> (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1)));
     MainController.povRight().toggleOnTrue(CompoundCommand.shoot(Tools.RightBump).until(() ->  (Math.abs(MainController.getLeftX())+Math.abs(MainController.getLeftY()+Math.abs(MainController.getRightX())) > 0.1)));
     MainController.back().onTrue(drivetrain.fieldReset());
     MainController.start().onTrue(drivetrain.resetHeading());
-    MainController.rightStick().toggleOnTrue(shooter.setState(() -> new SwerveModuleState(Shoot.MaxVelocity.times(SecondController.getRightTriggerAxis()), new Rotation2d(Pitch.PitchConstraints.getFirst().plus(Degrees.of(14*SecondController.getLeftTriggerAxis()))))));
-    
+    // new Trigger(() -> MainController.getLeftTriggerAxis()+MainController.getRightTriggerAxis() > 0.1)
+    MainController.rightStick()
+      .whileTrue(shooter.setState(() -> new SwerveModuleState(MetersPerSecond.of(5), Rotation2d.fromDegrees(90-25.6))));
     //------------------------------------------------------------------
 
     // SecondController.leftBumper().onTrue(intake.moveIntake(true));

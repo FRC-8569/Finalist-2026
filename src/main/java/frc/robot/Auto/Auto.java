@@ -24,11 +24,10 @@ public class Auto {
     public static Timer timer = new Timer();
 
     public static Command getAutoCommand(){
-        DogLog.log("Autonomous/DeterminingPose", drivetrain.getState().Pose);
         return drivetrain.getSide() == FieldSide.RIGHT ? 
             new SequentialCommandGroup(
                 CompoundCommand.shoot(Tools.RightBump, Seconds.of(3)),
-                drivetrain.drive(new Pose2d(16.0,7.2,Rotation2d.kCCW_90deg), null),
+                drivetrain.drive(new Pose2d(16.0,7.2,Rotation2d.kCCW_90deg), drivetrain.getSide()),
                 new WaitCommand(Seconds.of(5)),
                 CompoundCommand.shoot(Tools.RightBump)
             ) : 
