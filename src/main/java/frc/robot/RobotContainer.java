@@ -13,14 +13,11 @@ import java.util.List;
 
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.auto.NamedCommands;
-import com.pathplanner.lib.commands.PathPlannerAuto;
-
 import dev.doglog.DogLog;
 import dev.doglog.DogLogOptions;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
@@ -61,9 +58,6 @@ public class RobotContainer {
       Shooter.getInstance().setState(new SwerveModuleState(19, Rotation2d.fromDegrees(63))).withTimeout(Seconds.of(3));
     Command longWhileCommand = 
       Shooter.getInstance().setState(new SwerveModuleState(19, Rotation2d.fromDegrees(63))).withTimeout(Seconds.of(8));
-    
-    // shortwhileCommand.addRequirements(Drivetrain.getInstance());
-    // longWhileCommand.addRequirements(Drivetrain.getInstance());
     
     NamedCommands.registerCommands(List.of(
     Pair.of("ShortWhile", shortwhileCommand),
