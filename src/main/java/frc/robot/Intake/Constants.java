@@ -26,7 +26,7 @@ public class Constants {
         
         public static final MotionMagicConfigs TongueMagic = new MotionMagicConfigs()
             .withMotionMagicExpo_kV(0.001)
-            .withMotionMagicExpo_kA(0.15);
+            .withMotionMagicExpo_kA(0.05);
 
         public static final SoftwareLimitSwitchConfigs TongueLimit = new SoftwareLimitSwitchConfigs()
             .withForwardSoftLimitThreshold(1.45)

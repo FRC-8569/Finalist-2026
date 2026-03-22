@@ -8,6 +8,7 @@ import static edu.wpi.first.units.Units.RotationsPerSecond;
 import static edu.wpi.first.units.Units.Seconds;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import com.ctre.phoenix6.Utils;
@@ -20,13 +21,17 @@ import com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
 import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.auto.AutoBuilderException;
+import com.pathplanner.lib.auto.NamedCommands;
 import com.pathplanner.lib.commands.PathfindingCommand;
 import com.pathplanner.lib.config.RobotConfig;
+import com.pathplanner.lib.path.PathPlannerPath;
 
 import dev.doglog.DogLog;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
@@ -40,6 +45,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.GlobalConstants;
 import frc.robot.Drivetrain.Constants.Modules;
+import frc.robot.Shooter.Shooter;
 import frc.robot.Vision.Vision;
 import frc.utils.Tools;
 import frc.utils.Tools.FieldPlace;
@@ -71,6 +77,7 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
                 Modules.BackRight.constant
             }
         );
+
 
         
         AutoDrive = new SwerveRequest.ApplyRobotSpeeds()
@@ -146,6 +153,16 @@ public class Drivetrain extends SwerveDrivetrain<TalonFX,TalonFX, CANcoder> impl
                 return idle().withName("Driving to %.2f %.2f %.2f but with some error, now idling".formatted(pose.getX(),pose.getY(),pose.getRotation().getDegrees()));
             }
         });
+    }
+
+    public Command drive(String name){
+        try{
+            return AutoBuilder.followPath(PathPlannerPath.fromPathFile(name));
+            
+        }catch(Exception e){
+            DriverStation.reportError(e.getMessage(), e.getStackTrace());
+            return idle();
+        }
     }
     
     public Command resetHeading(){
