@@ -55,9 +55,9 @@ public class RobotContainer {
 
   public RobotContainer() {
     Command shortwhileCommand =
-      Shooter.getInstance().setState(new SwerveModuleState(19, Rotation2d.fromDegrees(63))).withTimeout(Seconds.of(3));
+      Shooter.getInstance().setState(new SwerveModuleState(19, Rotation2d.fromDegrees(63))).withTimeout(Seconds.of(7));
     Command longWhileCommand = 
-      Shooter.getInstance().setState(new SwerveModuleState(19, Rotation2d.fromDegrees(63))).withTimeout(Seconds.of(8));
+      Shooter.getInstance().setState(new SwerveModuleState(19, Rotation2d.fromDegrees(63))).withTimeout(Seconds.of(13));
     
     NamedCommands.registerCommands(List.of(
     Pair.of("ShortWhile", shortwhileCommand),
